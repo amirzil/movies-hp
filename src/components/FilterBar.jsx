@@ -1,21 +1,28 @@
-// Simple Icons CDN slugs + brand colors for known streaming services
-const SERVICE_LOGO_MAP = {
-  'netflix':     { slug: 'netflix',          color: 'E50914' },
-  'apple':       { slug: 'appletv',          color: 'ffffff' },
-  'disney':      { slug: 'disneyplus',       color: '0063e5' },
-  'prime':       { slug: 'amazonprimevideo', color: '00A8E0' },
-  'prime video': { slug: 'amazonprimevideo', color: '00A8E0' },
-  'hbo':         { slug: 'hbo',              color: 'ffffff' },
-  'kodi':        { slug: 'kodi',             color: '17B2E7' },
-  'paramount':   { slug: 'paramountplus',    color: '0064FF' },
-  'hulu':        { slug: 'hulu',             color: '1CE783' },
-  'max':         { slug: 'max',              color: '002BE7' },
+// Simple Icons CDN slugs + brand colors (only services confirmed to exist in Simple Icons)
+const SERVICE_ICON_MAP = {
+  'netflix':   { slug: 'netflix',       color: 'E50914' },
+  'apple':     { slug: 'appletv',       color: 'ffffff' },
+  'hbo':       { slug: 'hbo',           color: 'ffffff' },
+  'kodi':      { slug: 'kodi',          color: '17B2E7' },
+  'paramount': { slug: 'paramountplus', color: '0064FF' },
+  'max':       { slug: 'max',           color: '002BE7' },
 };
 
-function getServiceLogo(service) {
-  const entry = SERVICE_LOGO_MAP[service.toLowerCase().trim()];
-  if (!entry) return null;
-  return `https://cdn.simpleicons.org/${entry.slug}/${entry.color}`;
+// Branded text buttons for services not in Simple Icons
+const SERVICE_BRAND_MAP = {
+  'disney':      { label: 'D+',    bg: '#0063e5', fg: '#ffffff' },
+  'prime':       { label: 'prime', bg: '#1a98ff', fg: '#ffffff' },
+  'prime video': { label: 'prime', bg: '#1a98ff', fg: '#ffffff' },
+  'hulu':        { label: 'hulu',  bg: '#1CE783', fg: '#000000' },
+};
+
+function getServiceIcon(service) {
+  const key = service.toLowerCase().trim();
+  const icon = SERVICE_ICON_MAP[key];
+  if (icon) return { type: 'icon', url: `https://cdn.simpleicons.org/${icon.slug}/${icon.color}` };
+  const brand = SERVICE_BRAND_MAP[key];
+  if (brand) return { type: 'text', ...brand };
+  return null;
 }
 
 // Deterministic muted color for unknown services
@@ -145,29 +152,54 @@ export default function FilterBar({ genres, statuses, services, filters, onFilte
             </button>
 
             {services.map(service => {
-              const logoUrl = getServiceLogo(service);
+              const info = getServiceIcon(service);
               const isActive = filters.service === service;
-              return logoUrl ? (
-                /* Logo button for known services */
-                <button
-                  key={service}
-                  onClick={() => onFilterChange({ ...filters, service })}
-                  title={service}
-                  className={`flex-shrink-0 w-9 h-9 rounded-xl border flex items-center justify-center transition-all ${
-                    isActive
-                      ? 'bg-white/15 border-white/30 ring-1 ring-white/30'
-                      : 'bg-white/5 border-white/10 hover:bg-white/12 hover:border-white/20'
-                  }`}
-                >
-                  <img
-                    src={logoUrl}
-                    alt={service}
-                    className="w-5 h-5 object-contain"
-                    onError={e => { e.target.style.display = 'none'; }}
-                  />
-                </button>
-              ) : (
-                /* Text fallback for unknown services */
+
+              if (info?.type === 'icon') {
+                return (
+                  <button
+                    key={service}
+                    onClick={() => onFilterChange({ ...filters, service })}
+                    title={service}
+                    className={`flex-shrink-0 w-12 h-12 rounded-xl border flex items-center justify-center transition-all ${
+                      isActive
+                        ? 'bg-white/15 border-white/30 ring-1 ring-white/30'
+                        : 'bg-white/5 border-white/10 hover:bg-white/12 hover:border-white/20'
+                    }`}
+                  >
+                    <img
+                      src={info.url}
+                      alt={service}
+                      className="w-6 h-6 object-contain"
+                      onError={e => { e.target.style.display = 'none'; }}
+                    />
+                  </button>
+                );
+              }
+
+              if (info?.type === 'text') {
+                return (
+                  <button
+                    key={service}
+                    onClick={() => onFilterChange({ ...filters, service })}
+                    title={service}
+                    className={`flex-shrink-0 w-12 h-12 rounded-xl border flex items-center justify-center transition-all ${
+                      isActive ? 'ring-1 ring-white/30' : 'hover:brightness-110'
+                    }`}
+                    style={{
+                      backgroundColor: isActive ? info.bg : `${info.bg}55`,
+                      borderColor: isActive ? `${info.bg}99` : '#ffffff1a',
+                    }}
+                  >
+                    <span className="text-xs font-bold leading-none" style={{ color: info.fg }}>
+                      {info.label}
+                    </span>
+                  </button>
+                );
+              }
+
+              /* Text fallback for unknown services */
+              return (
                 <button
                   key={service}
                   onClick={() => onFilterChange({ ...filters, service })}
