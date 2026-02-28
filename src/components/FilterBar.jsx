@@ -66,46 +66,23 @@ export default function FilterBar({ genres, statuses, services, filters, onFilte
   return (
     <div className="max-w-screen-2xl mx-auto px-6 py-2 space-y-2">
 
-      {/* Sort + Size row */}
-      <div className="flex items-center justify-between gap-4">
-        {/* Sort */}
-        <div className="flex items-center gap-3">
-          <span className="text-xs text-gray-600 uppercase tracking-wider flex-shrink-0">Sort</span>
-          <div className="flex gap-1">
-            {SORT_OPTIONS.map(opt => (
-              <button
-                key={opt.value}
-                onClick={() => onSortChange(opt.value)}
-                className={`px-3 py-1 text-xs rounded-lg border transition-all ${
-                  sort === opt.value
-                    ? 'bg-purple-500/20 text-purple-300 border-purple-500/40'
-                    : 'bg-white/5 text-gray-400 border-white/10 hover:bg-white/10 hover:text-white'
-                }`}
-              >
-                {opt.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Poster size */}
-        <div className="flex items-center gap-3 flex-shrink-0">
-          <span className="text-xs text-gray-600 uppercase tracking-wider">Size</span>
-          <div className="flex gap-1">
-            {SIZE_OPTIONS.map(opt => (
-              <button
-                key={opt.value}
-                onClick={() => onSizeChange(opt.value)}
-                className={`w-8 h-7 text-xs font-semibold rounded-lg border transition-all ${
-                  posterSize === opt.value
-                    ? 'bg-white/15 text-white border-white/25'
-                    : 'bg-white/5 text-gray-500 border-white/10 hover:bg-white/10 hover:text-white'
-                }`}
-              >
-                {opt.label}
-              </button>
-            ))}
-          </div>
+      {/* Sort row */}
+      <div className="flex items-center gap-3">
+        <span className="text-xs text-gray-600 uppercase tracking-wider flex-shrink-0">Sort</span>
+        <div className="flex gap-1">
+          {SORT_OPTIONS.map(opt => (
+            <button
+              key={opt.value}
+              onClick={() => onSortChange(opt.value)}
+              className={`px-3 py-1 text-xs rounded-lg border transition-all ${
+                sort === opt.value
+                  ? 'bg-purple-500/20 text-purple-300 border-purple-500/40'
+                  : 'bg-white/5 text-gray-400 border-white/10 hover:bg-white/10 hover:text-white'
+              }`}
+            >
+              {opt.label}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -133,16 +110,16 @@ export default function FilterBar({ genres, statuses, services, filters, onFilte
         </div>
       )}
 
-      {/* Service filter */}
+      {/* Service filter + Size control */}
       {services?.length > 0 && (
         <div className="flex items-center gap-3">
           <span className="text-xs text-gray-600 uppercase tracking-wider w-12 flex-shrink-0">Service</span>
-          <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide items-center">
+          <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide items-center flex-1">
 
             {/* All button */}
             <button
               onClick={() => onFilterChange({ ...filters, service: '' })}
-              className={`px-3 py-1 text-xs rounded-full border whitespace-nowrap transition-all flex-shrink-0 ${
+              className={`flex-shrink-0 w-12 h-12 rounded-xl border flex items-center justify-center text-xs font-semibold transition-all ${
                 filters.service === ''
                   ? 'bg-white/15 text-white border-white/20'
                   : 'bg-white/5 text-gray-400 border-white/10 hover:bg-white/10 hover:text-white'
@@ -198,21 +175,42 @@ export default function FilterBar({ genres, statuses, services, filters, onFilte
                 );
               }
 
-              /* Text fallback for unknown services */
+              /* Unknown service — same square shape, text label */
               return (
                 <button
                   key={service}
                   onClick={() => onFilterChange({ ...filters, service })}
-                  className={`px-3 py-1 text-xs rounded-full border whitespace-nowrap transition-all flex-shrink-0 ${
+                  title={service}
+                  className={`flex-shrink-0 w-12 h-12 rounded-xl border flex items-center justify-center text-xs font-semibold transition-all ${
                     isActive
                       ? fallbackColor(service)
                       : 'bg-white/5 text-gray-400 border-white/10 hover:bg-white/10 hover:text-white'
                   }`}
                 >
-                  {service}
+                  {service.slice(0, 3)}
                 </button>
               );
             })}
+          </div>
+
+          {/* Poster size — pinned to the right */}
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <span className="text-xs text-gray-600 uppercase tracking-wider">Size</span>
+            <div className="flex gap-1">
+              {SIZE_OPTIONS.map(opt => (
+                <button
+                  key={opt.value}
+                  onClick={() => onSizeChange(opt.value)}
+                  className={`w-8 h-7 text-xs font-semibold rounded-lg border transition-all ${
+                    posterSize === opt.value
+                      ? 'bg-white/15 text-white border-white/25'
+                      : 'bg-white/5 text-gray-500 border-white/10 hover:bg-white/10 hover:text-white'
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       )}
