@@ -6,11 +6,12 @@ import MediaGrid from './components/MediaGrid.jsx';
 import MediaModal from './components/MediaModal.jsx';
 import { useMediaData } from './hooks/useMediaData.js';
 
-function applyFilters(items, { genre, status, search }) {
+function applyFilters(items, { genre, status, service, search }) {
   return items.filter(item => {
-    if (genre && !item.genre?.toLowerCase().includes(genre.toLowerCase())) return false;
-    if (status && item.status?.toLowerCase() !== status.toLowerCase()) return false;
-    if (search && !item.title?.toLowerCase().includes(search.toLowerCase())) return false;
+    if (genre   && !item.genre?.toLowerCase().includes(genre.toLowerCase())) return false;
+    if (status  && item.status?.toLowerCase()  !== status.toLowerCase())     return false;
+    if (service && item.service?.toLowerCase() !== service.toLowerCase())    return false;
+    if (search  && !item.title?.toLowerCase().includes(search.toLowerCase())) return false;
     return true;
   });
 }
@@ -34,7 +35,7 @@ function applySort(items, sort) {
 export default function App() {
   const [activeTab, setActiveTab] = useState('movies');
   const [selectedItem, setSelectedItem] = useState(null);
-  const [filters, setFilters] = useState({ genre: '', status: '', search: '' });
+  const [filters, setFilters] = useState({ genre: '', status: '', service: '', search: '' });
   const [sort, setSort] = useState('');
   const [posterSize, setPosterSize] = useState('md');
 
@@ -55,9 +56,13 @@ export default function App() {
     [...new Set(items.map(i => i.status).filter(Boolean))].sort()
   ), [items]);
 
+  const services = useMemo(() => (
+    [...new Set(items.map(i => i.service).filter(Boolean))].sort()
+  ), [items]);
+
   function handleTabChange(tab) {
     setActiveTab(tab);
-    setFilters({ genre: '', status: '', search: '' });
+    setFilters({ genre: '', status: '', service: '', search: '' });
     setSort('');
   }
 
@@ -93,6 +98,7 @@ export default function App() {
         <FilterBar
           genres={genres}
           statuses={statuses}
+          services={services}
           filters={filters}
           onFilterChange={setFilters}
           sort={sort}

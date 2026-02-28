@@ -22,7 +22,7 @@ const SIZE_OPTIONS = [
   { value: 'lg', label: 'L' },
 ];
 
-export default function FilterBar({ genres, statuses, filters, onFilterChange, sort, onSortChange, posterSize, onSizeChange }) {
+export default function FilterBar({ genres, statuses, services, filters, onFilterChange, sort, onSortChange, posterSize, onSizeChange }) {
   return (
     <div className="max-w-screen-2xl mx-auto px-6 py-2 space-y-2">
 
@@ -87,6 +87,28 @@ export default function FilterBar({ genres, statuses, filters, onFilterChange, s
                 }`}
               >
                 {status || 'All'}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Service filter */}
+      {services?.length > 0 && (
+        <div className="flex items-center gap-3">
+          <span className="text-xs text-gray-600 uppercase tracking-wider w-12 flex-shrink-0">Service</span>
+          <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+            {['', ...services].map(service => (
+              <button
+                key={service || '__all__'}
+                onClick={() => onFilterChange({ ...filters, service })}
+                className={`px-3 py-1 text-xs rounded-full border whitespace-nowrap transition-all flex-shrink-0 ${
+                  filters.service === service
+                    ? 'bg-blue-500/20 text-blue-300 border-blue-500/40'
+                    : 'bg-white/5 text-gray-400 border-white/10 hover:bg-white/10 hover:text-white'
+                }`}
+              >
+                {service || 'All'}
               </button>
             ))}
           </div>
