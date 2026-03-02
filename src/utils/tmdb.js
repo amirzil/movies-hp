@@ -51,6 +51,14 @@ function normaliseResult(r) {
   };
 }
 
+async function fetchFirstResult(endpoint, title, yearParam) {
+  const url = `${BASE}/${endpoint}?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(title)}${yearParam}&include_adult=false`;
+  const res = await fetch(url);
+  if (!res.ok) return null;
+  const json = await res.json();
+  return json.results?.[0] ?? null;
+}
+
 export async function searchTMDB(title, year, type) {
   if (!TMDB_API_KEY || !title) return null;
 
@@ -66,14 +74,12 @@ export async function searchTMDB(title, year, type) {
   const yearParam = year
     ? (type === 'movie' ? `&year=${year}` : `&first_air_date_year=${year}`)
     : '';
-  const url = `${BASE}/${endpoint}?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(title)}${yearParam}&include_adult=false`;
 
   try {
-    const res = await fetch(url);
-    if (!res.ok) return null;
-    const json = await res.json();
-    const r = json.results?.[0];
-    if (!r) { toCache(key, null); return null; }
+    // Try with year first; if no hit, retry without year
+    let r = year ? await fetchFirstResult(endpoint, title, yearParam) : null;
+    if (!r) r = await fetchFirstResult(endpoint, title, '');
+    if (!r) return null; // don't cache misses — retry on next load
     const data = normaliseResult(r);
     toCache(key, data);
     return data;
