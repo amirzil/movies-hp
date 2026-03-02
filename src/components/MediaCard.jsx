@@ -1,7 +1,8 @@
-function formatDate(raw) {
-  if (!raw) return '';
+function formatFutureDate(raw) {
+  if (!raw) return null;
   const d = new Date(raw);
-  if (isNaN(d.getTime())) return raw; // fallback: show as-is
+  if (isNaN(d.getTime())) return null;
+  if (d < new Date()) return null; // past — don't show
   const dd = String(d.getDate()).padStart(2, '0');
   const mm = String(d.getMonth() + 1).padStart(2, '0');
   const yy = String(d.getFullYear()).slice(-2);
@@ -85,8 +86,8 @@ export default function MediaCard({ item, onClick }) {
         {/* Year + last episode + rating — always visible */}
         <div className="flex items-center gap-2 flex-wrap">
           {item.year && <span className="text-gray-300 text-sm">{item.year}</span>}
-          {item.lastEpisode && (
-            <span className="text-gray-400 text-sm">· {formatDate(item.lastEpisode)}</span>
+          {formatFutureDate(item.lastEpisode) && (
+            <span className="text-gray-400 text-sm">· {formatFutureDate(item.lastEpisode)}</span>
           )}
           {item.rating && (
             <span className="text-yellow-400 text-sm font-semibold">★ {item.rating}</span>
