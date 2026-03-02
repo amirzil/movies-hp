@@ -55,6 +55,7 @@ export async function fetchSheetData(sheetName) {
       votes:          raw.votes || '',
       rottenTomatoes: raw['rotten tomatoes'] || raw.rt || '',
       posterUrl:      raw.poster || null,
+      lastEpisode:    raw['last episode'] || raw.lastepisode || raw['last ep'] || '',
     };
   }).filter(row => row.title);
 }

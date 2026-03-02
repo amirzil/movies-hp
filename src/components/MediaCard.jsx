@@ -63,16 +63,28 @@ export default function MediaCard({ item, onClick }) {
         </div>
       )}
 
-      {/* Hover overlay */}
-      <div className="absolute inset-0 bg-gradient-to-t from-black via-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-3">
-        <h3 className="text-white font-semibold text-sm line-clamp-2 leading-tight">{item.title}</h3>
-        <div className="flex items-center gap-2 mt-1 flex-wrap">
-          {item.year && <span className="text-gray-300 text-xs">{item.year}</span>}
+      {/* Always-visible bottom gradient */}
+      <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent pointer-events-none" />
+
+      {/* Bottom info — always visible */}
+      <div className="absolute bottom-0 inset-x-0 p-2 pointer-events-none">
+        {/* Title — fades in on hover */}
+        <h3 className="text-white font-semibold text-sm line-clamp-2 leading-tight mb-1 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+          {item.title}
+        </h3>
+        {/* Year + last episode + rating — always visible */}
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {item.year && <span className="text-gray-300 text-[11px]">{item.year}</span>}
+          {item.lastEpisode && (
+            <span className="text-gray-400 text-[11px]">· {item.lastEpisode}</span>
+          )}
           {item.rating && (
-            <span className="text-yellow-400 text-xs font-medium">★ {item.rating}</span>
+            <span className="text-yellow-400 text-[11px] font-medium">★ {item.rating}</span>
           )}
           {item.rottenTomatoes && (
-            <span className="text-red-400 text-xs font-medium">🍅 {item.rottenTomatoes}</span>
+            <span className="text-red-400 text-[11px] font-medium opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+              🍅 {item.rottenTomatoes}
+            </span>
           )}
         </div>
       </div>
