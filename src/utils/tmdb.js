@@ -1,4 +1,4 @@
-import { TMDB_API_KEY, TMDB_IMAGE_BASE, TMDB_BACKDROP_BASE, CACHE_TTL_MS } from '../config.js';
+import { TMDB_API_KEY, TMDB_IMAGE_BASE, TMDB_BACKDROP_BASE, CACHE_TTL_MS, FIREBASE_DB_URL } from '../config.js';
 
 const BASE = 'https://api.themoviedb.org/3';
 
@@ -6,8 +6,27 @@ function cacheKey(type, title, year) {
   return `tmdb:${type}:${title.toLowerCase().replace(/\s+/g, '_')}:${year || ''}`;
 }
 
+// Sanitize for Firebase RTDB keys (no . # $ / [ ])
 function overrideKey(type, title, year) {
-  return `tmdb:override:${type}:${title.toLowerCase().replace(/\s+/g, '_')}:${year || ''}`;
+  const safe = title.toLowerCase().replace(/[^a-z0-9_-]/g, '_');
+  return `${type}__${safe}__${year || 'no_year'}`;
+}
+
+function rtdbUrl(path) {
+  return `${FIREBASE_DB_URL.replace(/\/$/, '')}/${path}.json`;
+}
+
+// In-memory overrides loaded from RTDB on startup
+let _overrides = null;
+
+export async function loadOverrides() {
+  if (!FIREBASE_DB_URL) return;
+  try {
+    const res = await fetch(rtdbUrl('overrides'));
+    _overrides = res.ok ? (await res.json() || {}) : {};
+  } catch {
+    _overrides = {};
+  }
 }
 
 function fromCache(key) {
@@ -24,19 +43,24 @@ function toCache(key, data) {
   try { localStorage.setItem(key, JSON.stringify({ ts: Date.now(), data })); } catch {}
 }
 
-// Override storage — no TTL, persists until explicitly changed
-export function saveOverride(type, title, year, data) {
+export async function saveOverride(type, title, year, data) {
+  const key = overrideKey(type, title, year);
+  if (!_overrides) _overrides = {};
+  _overrides[key] = data; // update in-memory immediately
+  if (!FIREBASE_DB_URL) return;
   try {
-    localStorage.setItem(overrideKey(type, title, year), JSON.stringify(data));
+    await fetch(rtdbUrl(`overrides/${key}`), {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
   } catch {}
 }
 
 function getOverride(type, title, year) {
-  try {
-    const raw = localStorage.getItem(overrideKey(type, title, year));
-    if (raw === null) return undefined; // no override stored
-    return JSON.parse(raw);
-  } catch { return undefined; }
+  if (!_overrides) return undefined;
+  const val = _overrides[overrideKey(type, title, year)];
+  return val; // undefined = no override
 }
 
 function normaliseResult(r) {
