@@ -74,7 +74,7 @@ export default function FilterBar({ genres, statuses, services, filters, onFilte
             <button
               key={opt.value}
               onClick={() => onSortChange(opt.value)}
-              className={`px-3 py-1 text-xs rounded-lg border transition-all ${
+              className={`px-4 py-1.5 text-sm rounded-lg border transition-all ${
                 sort === opt.value
                   ? 'bg-purple-500/20 text-purple-300 border-purple-500/40'
                   : 'bg-white/5 text-gray-400 border-white/10 hover:bg-white/10 hover:text-white'

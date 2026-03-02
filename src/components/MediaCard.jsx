@@ -83,16 +83,16 @@ export default function MediaCard({ item, onClick }) {
           {item.title}
         </h3>
         {/* Year + last episode + rating — always visible */}
-        <div className="flex items-center gap-1.5 flex-wrap">
-          {item.year && <span className="text-gray-300 text-[11px]">{item.year}</span>}
+        <div className="flex items-center gap-2 flex-wrap">
+          {item.year && <span className="text-gray-300 text-sm">{item.year}</span>}
           {item.lastEpisode && (
-            <span className="text-gray-400 text-[11px]">· {formatDate(item.lastEpisode)}</span>
+            <span className="text-gray-400 text-sm">· {formatDate(item.lastEpisode)}</span>
           )}
           {item.rating && (
-            <span className="text-yellow-400 text-[11px] font-medium">★ {item.rating}</span>
+            <span className="text-yellow-400 text-sm font-semibold">★ {item.rating}</span>
           )}
           {item.rottenTomatoes && (
-            <span className="text-red-400 text-[11px] font-medium opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+            <span className="text-red-400 text-sm font-medium opacity-0 group-hover:opacity-100 transition-opacity duration-300">
               🍅 {item.rottenTomatoes}
             </span>
           )}
@@ -108,7 +108,7 @@ export default function MediaCard({ item, onClick }) {
 
       {/* No Hebrew subtitles badge */}
       {noSubs(item.subs) && (
-        <div className="absolute bottom-2 left-2">
+        <div className="absolute top-2 left-2">
           <NoSubsBadge />
         </div>
       )}
