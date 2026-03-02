@@ -1,3 +1,13 @@
+function formatDate(raw) {
+  if (!raw) return '';
+  const d = new Date(raw);
+  if (isNaN(d.getTime())) return raw; // fallback: show as-is
+  const dd = String(d.getDate()).padStart(2, '0');
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const yy = String(d.getFullYear()).slice(-2);
+  return `${dd}/${mm}/${yy}`;
+}
+
 function noSubs(subs) {
   const v = subs?.trim().toLowerCase();
   return v === 'n' || v === 'no';
@@ -76,7 +86,7 @@ export default function MediaCard({ item, onClick }) {
         <div className="flex items-center gap-1.5 flex-wrap">
           {item.year && <span className="text-gray-300 text-[11px]">{item.year}</span>}
           {item.lastEpisode && (
-            <span className="text-gray-400 text-[11px]">· {item.lastEpisode}</span>
+            <span className="text-gray-400 text-[11px]">· {formatDate(item.lastEpisode)}</span>
           )}
           {item.rating && (
             <span className="text-yellow-400 text-[11px] font-medium">★ {item.rating}</span>
