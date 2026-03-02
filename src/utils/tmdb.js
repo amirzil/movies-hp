@@ -68,7 +68,7 @@ export async function searchTMDB(title, year, type) {
 
   const key = cacheKey(type, title, year);
   const cached = fromCache(key);
-  if (cached !== undefined) return cached;
+  if (cached !== undefined && cached !== null) return cached; // skip stale null entries
 
   const endpoint = type === 'movie' ? 'search/movie' : 'search/tv';
   const yearParam = year
