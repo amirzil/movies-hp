@@ -24,6 +24,7 @@ jobs:
         env:
           VITE_TMDB_API_KEY: ${{ secrets.VITE_TMDB_API_KEY }}
           VITE_FIREBASE_DB_URL: https://movies-watchlist-hp-default-rtdb.firebaseio.com
+          VITE_SHEET_ID: ${{ secrets.VITE_SHEET_ID }}
 
       - name: Deploy to Firebase Hosting
         run: npx firebase-tools deploy --only hosting --non-interactive

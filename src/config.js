@@ -1,4 +1,4 @@
-export const SHEET_ID = '151Dfjpit_z203De3hdgb2z9IMScZbDPZJNJLA2O6NC8';
+export const SHEET_ID = import.meta.env.VITE_SHEET_ID || '';
 export const SHEET_NAMES = { movies: 'movies', series: 'List' };
 export const TMDB_API_KEY = import.meta.env.VITE_TMDB_API_KEY || '';
 export const TMDB_IMAGE_BASE = 'https://image.tmdb.org/t/p/w500';
