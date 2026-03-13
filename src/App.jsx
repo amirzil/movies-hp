@@ -38,7 +38,6 @@ export default function App() {
   const [filters, setFilters] = useState({ genre: '', status: '', service: '', search: '' });
   const [sort, setSort] = useState('');
   const [posterSize, setPosterSize] = useState('md');
-
   const { movies, series, loading, error, overrideItem } = useMediaData();
 
   const items = activeTab === 'movies' ? movies : series;
@@ -72,6 +71,7 @@ export default function App() {
         <div>
           <p className="text-red-400 font-medium mb-2">Failed to load data</p>
           <p className="text-gray-500 text-sm">{error}</p>
+
           <p className="text-gray-600 text-xs mt-4">
             Make sure your Google Sheet is set to "Anyone with the link can view"
           </p>
@@ -125,6 +125,8 @@ export default function App() {
           }}
         />
       )}
+
+
     </div>
   );
 }

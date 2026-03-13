@@ -21,6 +21,7 @@ export default function Header({ search, onSearch }) {
             className="w-full bg-white/5 border border-white/10 rounded-full py-2 pl-10 pr-4 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-purple-500/60 focus:bg-white/8 transition"
           />
         </div>
+
       </div>
     </header>
   );
