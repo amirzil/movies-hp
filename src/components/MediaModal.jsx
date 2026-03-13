@@ -1,6 +1,105 @@
 import { useEffect, useState } from 'react';
 import { fetchTrailer, searchTMDBMultiple, saveOverride, fetchSeasonStats } from '../utils/tmdb.js';
 
+const SEASON_COLORS = [
+  '#8b5cf6', '#3b82f6', '#10b981', '#f59e0b',
+  '#ef4444', '#ec4899', '#06b6d4', '#84cc16',
+  '#f97316', '#a855f7',
+];
+
+function EpisodeRatingChart({ seasons }) {
+  const [hovered, setHovered] = useState(null);
+
+  const allRatings = seasons.flatMap(s => s.episodes.map(e => e.rating));
+  const minRating = Math.max(0, Math.floor(Math.min(...allRatings) - 0.5));
+  const maxRating = Math.min(10, Math.ceil(Math.max(...allRatings) + 0.5));
+  const maxEp = Math.max(...seasons.map(s => s.episodes.length));
+
+  const W = 500, H = 180;
+  const ML = 28, MR = 8, MT = 8, MB = 20;
+  const chartW = W - ML - MR;
+  const chartH = H - MT - MB;
+
+  function xPos(ep) { return ML + (ep - 1) / Math.max(maxEp - 1, 1) * chartW; }
+  function yPos(r) { return MT + (1 - (r - minRating) / (maxRating - minRating)) * chartH; }
+
+  const yTicks = [];
+  for (let r = Math.ceil(minRating); r <= Math.floor(maxRating); r++) yTicks.push(r);
+
+  const xLabels = [];
+  const step = maxEp <= 10 ? 2 : maxEp <= 20 ? 5 : 10;
+  for (let n = step; n <= maxEp; n += step) xLabels.push(n);
+
+  return (
+    <div className="mt-4">
+      <p className="text-[11px] text-gray-500 uppercase tracking-wider mb-2">Episode Ratings</p>
+
+      <div className="flex flex-wrap gap-x-4 gap-y-1 mb-2">
+        {seasons.map((s, i) => (
+          <div key={s.season} className="flex items-center gap-1.5">
+            <div className="w-4 h-0.5 rounded-full" style={{ backgroundColor: SEASON_COLORS[i % SEASON_COLORS.length] }} />
+            <span className="text-[10px] text-gray-400">S{String(s.season).padStart(2, '0')}</span>
+          </div>
+        ))}
+      </div>
+
+      <div className="relative">
+        <svg
+          viewBox={`0 0 ${W} ${H}`}
+          className="w-full"
+          style={{ height: 180 }}
+          onMouseLeave={() => setHovered(null)}
+        >
+          {/* Gridlines + Y labels */}
+          {yTicks.map(r => (
+            <g key={r}>
+              <line x1={ML} y1={yPos(r)} x2={W - MR} y2={yPos(r)} stroke="rgba(255,255,255,0.06)" strokeWidth="1" />
+              <text x={ML - 4} y={yPos(r)} textAnchor="end" dominantBaseline="middle" fill="#6b7280" fontSize="8">{r}</text>
+            </g>
+          ))}
+
+          {/* X axis */}
+          <line x1={ML} y1={MT + chartH} x2={W - MR} y2={MT + chartH} stroke="rgba(255,255,255,0.1)" strokeWidth="1" />
+          {xLabels.map(n => (
+            <text key={n} x={xPos(n)} y={MT + chartH + 9} textAnchor="middle" fill="#6b7280" fontSize="8">{n}</text>
+          ))}
+
+          {/* Lines + dots per season */}
+          {seasons.map((s, si) => {
+            const color = SEASON_COLORS[si % SEASON_COLORS.length];
+            const pts = s.episodes.map((e, i) => `${xPos(i + 1)},${yPos(e.rating)}`).join(' ');
+            return (
+              <g key={s.season}>
+                <polyline points={pts} fill="none" stroke={color} strokeWidth="1.5"
+                  strokeLinejoin="round" strokeLinecap="round" opacity="0.8" />
+                {s.episodes.map((e, i) => (
+                  <circle
+                    key={i}
+                    cx={xPos(i + 1)} cy={yPos(e.rating)} r="3"
+                    fill={color} opacity={hovered?.season === s.season && hovered?.ep === i + 1 ? 1 : 0.75}
+                    style={{ cursor: 'crosshair' }}
+                    onMouseEnter={() => setHovered({ season: s.season, ep: i + 1, rating: e.rating, name: e.name, color })}
+                  />
+                ))}
+              </g>
+            );
+          })}
+        </svg>
+
+        {hovered && (
+          <div className="absolute top-1 right-1 bg-[#1a1a2e] border border-white/10 rounded-lg px-3 py-2 text-xs pointer-events-none shadow-lg">
+            <p className="text-gray-400 mb-0.5">
+              S{String(hovered.season).padStart(2, '0')} E{String(hovered.ep).padStart(2, '0')}
+            </p>
+            {hovered.name && <p className="text-white font-medium text-[11px] mb-0.5 max-w-[150px] truncate">{hovered.name}</p>}
+            <p className="font-semibold" style={{ color: hovered.color }}>★ {hovered.rating.toFixed(1)}</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 const STATUS_COLOR = {
   'watched':       'text-green-400',
   'watching':      'text-blue-400',
@@ -225,34 +324,8 @@ export default function MediaModal({ item, onClose, onCorrect }) {
                 </div>
               )}
 
-              {/* Season episode ratings */}
-              {seasonStats && (
-                <div className="mt-4">
-                  <p className="text-[11px] text-gray-500 uppercase tracking-wider mb-2">Episode Ratings by Season</p>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm border-separate border-spacing-y-1">
-                      <thead>
-                        <tr className="text-[11px] text-gray-500 uppercase tracking-wider">
-                          <th className="text-left pr-4 pb-1">Season</th>
-                          <th className="text-right pr-4 pb-1">Avg</th>
-                          <th className="text-right pr-4 pb-1">High</th>
-                          <th className="text-right pb-1">Low</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {seasonStats.map(s => (
-                          <tr key={s.season} className="bg-white/5 rounded">
-                            <td className="text-gray-300 pl-3 py-1.5 rounded-l-lg pr-4">S{String(s.season).padStart(2, '0')}</td>
-                            <td className="text-yellow-400 font-medium text-right pr-4 py-1.5">{s.avg}</td>
-                            <td className="text-green-400 text-right pr-4 py-1.5">{s.high}</td>
-                            <td className="text-red-400 text-right pr-3 py-1.5 rounded-r-lg">{s.low}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
+              {/* Season episode ratings chart */}
+              {seasonStats && <EpisodeRatingChart seasons={seasonStats} />}
 
               {/* Wrong match button */}
               <button

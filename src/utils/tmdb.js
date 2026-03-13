@@ -128,7 +128,7 @@ export async function searchTMDBMultiple(title, type) {
 export async function fetchSeasonStats(tmdbId) {
   if (!TMDB_API_KEY || !tmdbId) return null;
 
-  const showKey = `tmdb:seasons:${tmdbId}`;
+  const showKey = `tmdb:seasons4:${tmdbId}`;
   const cached = fromCache(showKey);
   if (cached !== undefined) return cached;
 
@@ -139,7 +139,7 @@ export async function fetchSeasonStats(tmdbId) {
     const seasons = (showJson.seasons || []).filter(s => s.season_number > 0);
 
     const stats = await Promise.all(seasons.map(async s => {
-      const key = `tmdb:season:${tmdbId}:${s.season_number}`;
+      const key = `tmdb:season4:${tmdbId}:${s.season_number}`;
       let episodes;
       const cachedSeason = fromCache(key);
       if (cachedSeason !== undefined) {
@@ -149,19 +149,12 @@ export async function fetchSeasonStats(tmdbId) {
         if (!res.ok) return null;
         const json = await res.json();
         episodes = (json.episodes || [])
-          .map(e => e.vote_average)
-          .filter(v => v > 0);
+          .filter(e => e.vote_average > 0)
+          .map(e => ({ ep: e.episode_number, rating: e.vote_average, name: e.name }));
         toCache(key, episodes);
       }
       if (!episodes.length) return null;
-      const avg = episodes.reduce((a, b) => a + b, 0) / episodes.length;
-      return {
-        season: s.season_number,
-        avg: avg.toFixed(1),
-        high: Math.max(...episodes).toFixed(1),
-        low: Math.min(...episodes).toFixed(1),
-        episodeCount: s.episode_count,
-      };
+      return { season: s.season_number, episodes };
     }));
 
     const result = stats.filter(Boolean);
