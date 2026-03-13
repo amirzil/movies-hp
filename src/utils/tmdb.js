@@ -125,6 +125,51 @@ export async function searchTMDBMultiple(title, type) {
   } catch { return []; }
 }
 
+export async function fetchSeasonStats(tmdbId) {
+  if (!TMDB_API_KEY || !tmdbId) return null;
+
+  const showKey = `tmdb:seasons:${tmdbId}`;
+  const cached = fromCache(showKey);
+  if (cached !== undefined) return cached;
+
+  try {
+    const showRes = await fetch(`${BASE}/tv/${tmdbId}?api_key=${TMDB_API_KEY}`);
+    if (!showRes.ok) return null;
+    const showJson = await showRes.json();
+    const seasons = (showJson.seasons || []).filter(s => s.season_number > 0);
+
+    const stats = await Promise.all(seasons.map(async s => {
+      const key = `tmdb:season:${tmdbId}:${s.season_number}`;
+      let episodes;
+      const cachedSeason = fromCache(key);
+      if (cachedSeason !== undefined) {
+        episodes = cachedSeason;
+      } else {
+        const res = await fetch(`${BASE}/tv/${tmdbId}/season/${s.season_number}?api_key=${TMDB_API_KEY}`);
+        if (!res.ok) return null;
+        const json = await res.json();
+        episodes = (json.episodes || [])
+          .map(e => e.vote_average)
+          .filter(v => v > 0);
+        toCache(key, episodes);
+      }
+      if (!episodes.length) return null;
+      const avg = episodes.reduce((a, b) => a + b, 0) / episodes.length;
+      return {
+        season: s.season_number,
+        avg: avg.toFixed(1),
+        high: Math.max(...episodes).toFixed(1),
+        low: Math.min(...episodes).toFixed(1),
+        episodeCount: s.episode_count,
+      };
+    }));
+
+    const result = stats.filter(Boolean);
+    toCache(showKey, result);
+    return result;
+  } catch { return null; }
+}
+
 export async function fetchTrailer(tmdbId, mediaType) {
   if (!TMDB_API_KEY || !tmdbId) return null;
 

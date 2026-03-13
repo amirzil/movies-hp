@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { fetchTrailer, searchTMDBMultiple, saveOverride } from '../utils/tmdb.js';
+import { fetchTrailer, searchTMDBMultiple, saveOverride, fetchSeasonStats } from '../utils/tmdb.js';
 
 const STATUS_COLOR = {
   'watched':       'text-green-400',
@@ -70,15 +70,22 @@ function PickerGrid({ title, mediaType, onSelect, onCancel }) {
 export default function MediaModal({ item, onClose, onCorrect }) {
   const [trailerKey, setTrailerKey] = useState(null);
   const [picking, setPicking] = useState(false);
+  const [seasonStats, setSeasonStats] = useState(null);
 
   // Fetch trailer
   useEffect(() => {
     setTrailerKey(null);
     setPicking(false);
+    setSeasonStats(null);
     if (item.tmdbId && item.mediaType) {
       fetchTrailer(item.tmdbId, item.mediaType).then(key => {
         if (key) setTrailerKey(key);
       });
+      if (item.mediaType === 'tv') {
+        fetchSeasonStats(item.tmdbId).then(stats => {
+          if (stats?.length) setSeasonStats(stats);
+        });
+      }
     }
   }, [item.tmdbId, item.mediaType]);
 
@@ -215,6 +222,35 @@ export default function MediaModal({ item, onClose, onCorrect }) {
                 <div className="mt-4 p-3 rounded-xl bg-white/5 border border-white/10">
                   <p className="text-[11px] text-gray-500 uppercase tracking-wider mb-1.5">My Notes</p>
                   <p className="text-gray-300 text-sm leading-relaxed">{item.notes}</p>
+                </div>
+              )}
+
+              {/* Season episode ratings */}
+              {seasonStats && (
+                <div className="mt-4">
+                  <p className="text-[11px] text-gray-500 uppercase tracking-wider mb-2">Episode Ratings by Season</p>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm border-separate border-spacing-y-1">
+                      <thead>
+                        <tr className="text-[11px] text-gray-500 uppercase tracking-wider">
+                          <th className="text-left pr-4 pb-1">Season</th>
+                          <th className="text-right pr-4 pb-1">Avg</th>
+                          <th className="text-right pr-4 pb-1">High</th>
+                          <th className="text-right pb-1">Low</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {seasonStats.map(s => (
+                          <tr key={s.season} className="bg-white/5 rounded">
+                            <td className="text-gray-300 pl-3 py-1.5 rounded-l-lg pr-4">S{String(s.season).padStart(2, '0')}</td>
+                            <td className="text-yellow-400 font-medium text-right pr-4 py-1.5">{s.avg}</td>
+                            <td className="text-green-400 text-right pr-4 py-1.5">{s.high}</td>
+                            <td className="text-red-400 text-right pr-3 py-1.5 rounded-r-lg">{s.low}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               )}
 
