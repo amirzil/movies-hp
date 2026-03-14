@@ -1,4 +1,4 @@
-import { TMDB_API_KEY, TMDB_IMAGE_BASE, TMDB_BACKDROP_BASE, CACHE_TTL_MS, FIREBASE_DB_URL } from '../config.js';
+import { TMDB_API_KEY, TMDB_IMAGE_BASE, TMDB_BACKDROP_BASE, CACHE_TTL_MS, FIREBASE_DB_URL, OMDB_API_KEY } from '../config.js';
 
 const BASE = 'https://api.themoviedb.org/3';
 
@@ -125,35 +125,75 @@ export async function searchTMDBMultiple(title, type) {
   } catch { return []; }
 }
 
+async function getImdbId(tmdbId) {
+  const key = `tmdb:imdbid:${tmdbId}`;
+  const cached = fromCache(key);
+  if (cached !== undefined) return cached;
+  try {
+    const res = await fetch(`${BASE}/tv/${tmdbId}/external_ids?api_key=${TMDB_API_KEY}`);
+    if (!res.ok) return null;
+    const json = await res.json();
+    const imdbId = json.imdb_id || null;
+    toCache(key, imdbId);
+    return imdbId;
+  } catch { return null; }
+}
+
 export async function fetchSeasonStats(tmdbId) {
   if (!TMDB_API_KEY || !tmdbId) return null;
 
-  const showKey = `tmdb:seasons4:${tmdbId}`;
+  const showKey = `omdb:seasons:${tmdbId}`;
   const cached = fromCache(showKey);
   if (cached !== undefined) return cached;
 
   try {
+    // Get number of seasons from TMDB
     const showRes = await fetch(`${BASE}/tv/${tmdbId}?api_key=${TMDB_API_KEY}`);
     if (!showRes.ok) return null;
     const showJson = await showRes.json();
     const seasons = (showJson.seasons || []).filter(s => s.season_number > 0);
+    if (!seasons.length) return null;
+
+    // Get IMDB ID for OMDB lookups
+    const imdbId = OMDB_API_KEY ? await getImdbId(tmdbId) : null;
 
     const stats = await Promise.all(seasons.map(async s => {
-      const key = `tmdb:season4:${tmdbId}:${s.season_number}`;
-      let episodes;
+      const key = `omdb:season:${tmdbId}:${s.season_number}`;
       const cachedSeason = fromCache(key);
-      if (cachedSeason !== undefined) {
-        episodes = cachedSeason;
-      } else {
-        const res = await fetch(`${BASE}/tv/${tmdbId}/season/${s.season_number}?api_key=${TMDB_API_KEY}`);
-        if (!res.ok) return null;
-        const json = await res.json();
-        episodes = (json.episodes || [])
-          .filter(e => e.vote_average > 0)
-          .map(e => ({ ep: e.episode_number, rating: e.vote_average, name: e.name }));
-        toCache(key, episodes);
+      if (cachedSeason !== undefined) return cachedSeason ? { season: s.season_number, episodes: cachedSeason } : null;
+
+      let episodes = null;
+
+      // Try OMDB first (real IMDB ratings)
+      if (imdbId && OMDB_API_KEY) {
+        try {
+          const res = await fetch(`https://www.omdbapi.com/?i=${imdbId}&Season=${s.season_number}&apikey=${OMDB_API_KEY}`);
+          if (res.ok) {
+            const json = await res.json();
+            if (json.Response === 'True' && json.Episodes) {
+              episodes = json.Episodes
+                .filter(e => e.imdbRating !== 'N/A')
+                .map(e => ({ ep: parseInt(e.Episode, 10), rating: parseFloat(e.imdbRating), name: e.Title }));
+            }
+          }
+        } catch {}
       }
-      if (!episodes.length) return null;
+
+      // Fallback to TMDB vote_average
+      if (!episodes) {
+        try {
+          const res = await fetch(`${BASE}/tv/${tmdbId}/season/${s.season_number}?api_key=${TMDB_API_KEY}`);
+          if (res.ok) {
+            const json = await res.json();
+            episodes = (json.episodes || [])
+              .filter(e => e.vote_average > 0)
+              .map(e => ({ ep: e.episode_number, rating: e.vote_average, name: e.name }));
+          }
+        } catch {}
+      }
+
+      if (!episodes?.length) { toCache(key, null); return null; }
+      toCache(key, episodes);
       return { season: s.season_number, episodes };
     }));
 
