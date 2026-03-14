@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { fetchSheetData } from '../utils/sheets.js';
-import { searchTMDB, loadOverrides, loadMediaCache } from '../utils/tmdb.js';
+import { searchTMDB, loadOverrides, loadMediaCache, fetchOmdbShowInfo } from '../utils/tmdb.js';
 import { SHEET_NAMES } from '../config.js';
 
 const BATCH_SIZE = 8;
@@ -8,10 +8,16 @@ const BATCH_SIZE = 8;
 async function enrichBatch(items, type, onBatchDone) {
   for (let i = 0; i < items.length; i += BATCH_SIZE) {
     const batch = items.slice(i, i + BATCH_SIZE);
-    const results = await Promise.all(
+    const tmdbResults = await Promise.all(
       batch.map(item => searchTMDB(item.title, item.year, type))
     );
-    onBatchDone(results.map((tmdb, j) => ({ index: i + j, tmdb })));
+    // Fetch OMDB for each item that got a tmdbId — hits localStorage cache if already fetched
+    const omdbResults = await Promise.all(
+      tmdbResults.map(tmdb =>
+        tmdb?.tmdbId ? fetchOmdbShowInfo(tmdb.tmdbId, type) : Promise.resolve(null)
+      )
+    );
+    onBatchDone(tmdbResults.map((tmdb, j) => ({ index: i + j, tmdb, omdb: omdbResults[j] })));
   }
 }
 
@@ -46,17 +52,19 @@ export function useMediaData() {
           if (!active) return;
           setMovies(prev => {
             const next = [...prev];
-            updates.forEach(({ index, tmdb }) => {
+            updates.forEach(({ index, tmdb, omdb }) => {
               if (!tmdb) return;
               const existing = next[index];
               next[index] = {
                 ...tmdb,
                 ...existing,
-                // Only use TMDB poster/backdrop if sheet didn't provide them
-                posterUrl:   existing.posterUrl  || tmdb.posterUrl,
-                backdropUrl: existing.backdropUrl || tmdb.backdropUrl,
-                overview:    existing.overview   || tmdb.overview,
-                tmdbRating:  tmdb.tmdbRating,
+                posterUrl:      existing.posterUrl      || tmdb.posterUrl,
+                backdropUrl:    existing.backdropUrl    || tmdb.backdropUrl,
+                overview:       existing.overview       || tmdb.overview       || omdb?.plot,
+                tmdbRating:     tmdb.tmdbRating,
+                rating:         existing.rating         || omdb?.rating,
+                votes:          existing.votes          || omdb?.votes,
+                rottenTomatoes: existing.rottenTomatoes || omdb?.rottenTomatoes,
               };
             });
             return next;
@@ -67,16 +75,19 @@ export function useMediaData() {
           if (!active) return;
           setSeries(prev => {
             const next = [...prev];
-            updates.forEach(({ index, tmdb }) => {
+            updates.forEach(({ index, tmdb, omdb }) => {
               if (!tmdb) return;
               const existing = next[index];
               next[index] = {
                 ...tmdb,
                 ...existing,
-                posterUrl:   existing.posterUrl  || tmdb.posterUrl,
-                backdropUrl: existing.backdropUrl || tmdb.backdropUrl,
-                overview:    existing.overview   || tmdb.overview,
-                tmdbRating:  tmdb.tmdbRating,
+                posterUrl:      existing.posterUrl      || tmdb.posterUrl,
+                backdropUrl:    existing.backdropUrl    || tmdb.backdropUrl,
+                overview:       existing.overview       || tmdb.overview       || omdb?.plot,
+                tmdbRating:     tmdb.tmdbRating,
+                rating:         existing.rating         || omdb?.rating,
+                votes:          existing.votes          || omdb?.votes,
+                rottenTomatoes: existing.rottenTomatoes || omdb?.rottenTomatoes,
               };
             });
             return next;

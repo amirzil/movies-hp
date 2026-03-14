@@ -218,7 +218,7 @@ export async function fetchOmdbShowInfo(tmdbId, mediaType) {
 export async function fetchSeasonStats(tmdbId) {
   if (!TMDB_API_KEY || !tmdbId) return null;
 
-  const showKey = `omdb:seasons:${tmdbId}`;
+  const showKey = `omdb2:seasons:${tmdbId}`;
   const cached = fromCache(showKey);
   if (cached !== undefined) return cached;
 
@@ -232,7 +232,7 @@ export async function fetchSeasonStats(tmdbId) {
     const imdbId = OMDB_API_KEY ? await getImdbId(tmdbId, 'tv') : null;
 
     const stats = await Promise.all(seasons.map(async s => {
-      const key = `omdb:season:${tmdbId}:${s.season_number}`;
+      const key = `omdb2:season:${tmdbId}:${s.season_number}`;
       const cachedSeason = fromCache(key);
       if (cachedSeason !== undefined) return cachedSeason ? { season: s.season_number, episodes: cachedSeason } : null;
 
