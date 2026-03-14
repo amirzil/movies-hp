@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { fetchTrailer, searchTMDBMultiple, saveOverride, fetchSeasonStats, fetchOmdbShowInfo, getOmdbError } from '../utils/tmdb.js';
+import { fetchTrailer, searchTMDBMultiple, saveOverride, fetchSeasonStats, fetchOmdbShowInfo, getOmdbError, clearOmdbError } from '../utils/tmdb.js';
 
 const SEASON_COLORS = [
   '#8b5cf6', '#3b82f6', '#10b981', '#f59e0b',
@@ -182,6 +182,7 @@ export default function MediaModal({ item, onClose, onCorrect }) {
     setOmdbData(null);
     setOmdbError(null);
     setOmdbDebug([]);
+    clearOmdbError();
     if (item.tmdbId && item.mediaType) {
       fetchTrailer(item.tmdbId, item.mediaType).then(key => {
         if (key) setTrailerKey(key);

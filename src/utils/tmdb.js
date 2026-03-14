@@ -179,8 +179,13 @@ async function getImdbId(tmdbId, mediaType = 'tv') {
 
 let _omdbError = null;
 export function getOmdbError() { return _omdbError; }
+export function clearOmdbError() { _omdbError = null; }
 function recordOmdbError(json) {
-  if (json?.Response === 'False' && json?.Error) _omdbError = json.Error;
+  // Only surface quota/auth failures — not content misses like "not found"
+  const msg = json?.Error || '';
+  if (json?.Response === 'False' && (msg.includes('limit') || msg.includes('key'))) {
+    _omdbError = msg;
+  }
 }
 
 // ─── OMDB show-level info (cached in localStorage) ───────────────────────────
