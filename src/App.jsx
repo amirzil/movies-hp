@@ -33,7 +33,7 @@ function applySort(items, sort) {
 }
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState('movies');
+  const [activeTab, setActiveTab] = useState('series');
   const [selectedItem, setSelectedItem] = useState(null);
   const [filters, setFilters] = useState({ genre: '', status: '', service: '', search: '' });
   const [sort, setSort] = useState('');
