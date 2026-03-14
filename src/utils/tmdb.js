@@ -167,10 +167,10 @@ async function getImdbId(tmdbId, mediaType = 'tv') {
   if (cached !== undefined) return cached;
   try {
     const res = await fetch(`${BASE}/${mediaType}/${tmdbId}/external_ids?api_key=${TMDB_API_KEY}`);
-    if (!res.ok) return null;
+    if (!res.ok) return null; // don't cache — retry next time
     const json = await res.json();
     const imdbId = json.imdb_id || null;
-    toCache(key, imdbId);
+    if (imdbId) toCache(key, imdbId); // only cache a real ID
     return imdbId;
   } catch { return null; }
 }
@@ -180,18 +180,18 @@ async function getImdbId(tmdbId, mediaType = 'tv') {
 export async function fetchOmdbShowInfo(tmdbId, mediaType) {
   if (!OMDB_API_KEY || !TMDB_API_KEY || !tmdbId) return null;
 
-  const key = `omdb:show:${mediaType}:${tmdbId}`;
+  const key = `omdb:show2:${mediaType}:${tmdbId}`;
   const cached = fromCache(key);
   if (cached !== undefined) return cached;
 
   const imdbId = await getImdbId(tmdbId, mediaType);
-  if (!imdbId) { toCache(key, null); return null; }
+  if (!imdbId) return null; // don't cache — show might get an IMDB ID later
 
   try {
     const res = await fetch(`https://www.omdbapi.com/?i=${imdbId}&apikey=${OMDB_API_KEY}`);
-    if (!res.ok) { toCache(key, null); return null; }
+    if (!res.ok) return null; // don't cache — retry next time
     const json = await res.json();
-    if (json.Response !== 'True') { toCache(key, null); return null; }
+    if (json.Response !== 'True') return null; // don't cache — OMDB might add it later
 
     const rt = json.Ratings?.find(r => r.Source === 'Rotten Tomatoes')?.Value || null;
     const data = {
@@ -202,7 +202,7 @@ export async function fetchOmdbShowInfo(tmdbId, mediaType) {
     };
     toCache(key, data);
     return data;
-  } catch { toCache(key, null); return null; }
+  } catch { return null; }
 }
 
 // ─── Episode ratings per season (cached in localStorage, fetched lazily) ──────
