@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { fetchTrailer, searchTMDBMultiple, saveOverride, fetchSeasonStats } from '../utils/tmdb.js';
+import { fetchTrailer, searchTMDBMultiple, saveOverride, fetchSeasonStats, fetchOmdbShowInfo } from '../utils/tmdb.js';
 
 const SEASON_COLORS = [
   '#8b5cf6', '#3b82f6', '#10b981', '#f59e0b',
@@ -170,15 +170,20 @@ export default function MediaModal({ item, onClose, onCorrect }) {
   const [trailerKey, setTrailerKey] = useState(null);
   const [picking, setPicking] = useState(false);
   const [seasonStats, setSeasonStats] = useState(null);
+  const [omdbData, setOmdbData] = useState(null);
 
-  // Fetch trailer
+  // Fetch trailer, episode stats, and OMDB enrichment on open
   useEffect(() => {
     setTrailerKey(null);
     setPicking(false);
     setSeasonStats(null);
+    setOmdbData(null);
     if (item.tmdbId && item.mediaType) {
       fetchTrailer(item.tmdbId, item.mediaType).then(key => {
         if (key) setTrailerKey(key);
+      });
+      fetchOmdbShowInfo(item.tmdbId, item.mediaType).then(data => {
+        if (data) setOmdbData(data);
       });
       if (item.mediaType === 'tv') {
         fetchSeasonStats(item.tmdbId).then(stats => {
@@ -206,6 +211,12 @@ export default function MediaModal({ item, onClose, onCorrect }) {
     onCorrect(item, newData);
     setPicking(false);
   }
+
+  // Merge OMDB data into item — sheet data takes priority, OMDB fills missing fields
+  const rating         = item.rating         || omdbData?.rating         || null;
+  const votes          = item.votes          || omdbData?.votes          || null;
+  const rottenTomatoes = item.rottenTomatoes || omdbData?.rottenTomatoes || null;
+  const overview       = item.overview       || omdbData?.plot           || null;
 
   const genres = item.genre
     ? item.genre.split(',').map(g => g.trim()).filter(Boolean)
@@ -280,14 +291,14 @@ export default function MediaModal({ item, onClose, onCorrect }) {
                   {item.tmdbRating && (
                     <span className="text-yellow-400 text-sm font-medium">★ {item.tmdbRating} TMDB</span>
                   )}
-                  {item.rating && (
-                    <span className="text-purple-300 text-sm">IMDB: {item.rating}</span>
+                  {rating && (
+                    <span className="text-purple-300 text-sm">IMDB: {rating}</span>
                   )}
-                  {item.rottenTomatoes && (
-                    <span className="text-red-400 text-sm">🍅 {item.rottenTomatoes}</span>
+                  {rottenTomatoes && (
+                    <span className="text-red-400 text-sm">🍅 {rottenTomatoes}</span>
                   )}
-                  {item.votes && (
-                    <span className="text-gray-500 text-xs">{item.votes} votes</span>
+                  {votes && (
+                    <span className="text-gray-500 text-xs">{votes} votes</span>
                   )}
                 </div>
 
@@ -315,8 +326,8 @@ export default function MediaModal({ item, onClose, onCorrect }) {
                   </div>
                 )}
 
-                {item.overview && (
-                  <p className="text-gray-300 text-sm leading-relaxed mt-4">{item.overview}</p>
+                {overview && (
+                  <p className="text-gray-300 text-sm leading-relaxed mt-4">{overview}</p>
                 )}
 
                 {item.notes && (

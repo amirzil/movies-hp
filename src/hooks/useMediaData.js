@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { fetchSheetData } from '../utils/sheets.js';
-import { searchTMDB, loadOverrides } from '../utils/tmdb.js';
+import { searchTMDB, loadOverrides, loadMediaCache } from '../utils/tmdb.js';
 import { SHEET_NAMES } from '../config.js';
 
 const BATCH_SIZE = 8;
@@ -29,7 +29,8 @@ export function useMediaData() {
         const [rawMovies, rawSeries] = await Promise.all([
           fetchSheetData(SHEET_NAMES.movies),
           fetchSheetData(SHEET_NAMES.series),
-          loadOverrides(), // load server overrides before TMDB enrichment
+          loadOverrides(),    // load overrides before TMDB enrichment
+          loadMediaCache(),   // load TMDB cache from RTDB to avoid redundant API calls
         ]);
         if (!active) return;
 

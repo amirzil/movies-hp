@@ -2,12 +2,8 @@ import { TMDB_API_KEY, TMDB_IMAGE_BASE, TMDB_BACKDROP_BASE, CACHE_TTL_MS, FIREBA
 
 const BASE = 'https://api.themoviedb.org/3';
 
-function cacheKey(type, title, year) {
-  return `tmdb:${type}:${title.toLowerCase().replace(/\s+/g, '_')}:${year || ''}`;
-}
-
-// Sanitize for Firebase RTDB keys (no . # $ / [ ])
-function overrideKey(type, title, year) {
+// Firebase RTDB key (no . # $ / [ ])
+function rtdbSafeKey(type, title, year) {
   const safe = title.toLowerCase().replace(/[^a-z0-9_-]/g, '_');
   return `${type}__${safe}__${year || 'no_year'}`;
 }
@@ -16,8 +12,10 @@ function rtdbUrl(path) {
   return `${FIREBASE_DB_URL.replace(/\/$/, '')}/${path}.json`;
 }
 
-// In-memory overrides loaded from RTDB on startup
+// ─── In-memory caches loaded from RTDB on startup ────────────────────────────
+
 let _overrides = null;
+let _mediaCache = null; // TMDB search results
 
 export async function loadOverrides() {
   if (!FIREBASE_DB_URL) return;
@@ -28,6 +26,30 @@ export async function loadOverrides() {
     _overrides = {};
   }
 }
+
+export async function loadMediaCache() {
+  if (!FIREBASE_DB_URL) { _mediaCache = {}; return; }
+  try {
+    const res = await fetch(rtdbUrl('media_cache'));
+    _mediaCache = res.ok ? (await res.json() || {}) : {};
+  } catch {
+    _mediaCache = {};
+  }
+}
+
+function saveToMediaCache(key, data) {
+  if (!_mediaCache) _mediaCache = {};
+  _mediaCache[key] = data;
+  if (!FIREBASE_DB_URL) return;
+  // fire and forget
+  fetch(rtdbUrl(`media_cache/${key}`), {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  }).catch(() => {});
+}
+
+// ─── localStorage helpers (episode data + misc small caches) ─────────────────
 
 function fromCache(key) {
   try {
@@ -43,10 +65,12 @@ function toCache(key, data) {
   try { localStorage.setItem(key, JSON.stringify({ ts: Date.now(), data })); } catch {}
 }
 
+// ─── Overrides ────────────────────────────────────────────────────────────────
+
 export async function saveOverride(type, title, year, data) {
-  const key = overrideKey(type, title, year);
+  const key = rtdbSafeKey(type, title, year);
   if (!_overrides) _overrides = {};
-  _overrides[key] = data; // update in-memory immediately
+  _overrides[key] = data;
   if (!FIREBASE_DB_URL) return;
   try {
     await fetch(rtdbUrl(`overrides/${key}`), {
@@ -59,19 +83,20 @@ export async function saveOverride(type, title, year, data) {
 
 function getOverride(type, title, year) {
   if (!_overrides) return undefined;
-  const val = _overrides[overrideKey(type, title, year)];
-  return val; // undefined = no override
+  return _overrides[rtdbSafeKey(type, title, year)];
 }
+
+// ─── TMDB search ──────────────────────────────────────────────────────────────
 
 function normaliseResult(r) {
   return {
-    tmdbId:     r.id,
-    posterUrl:  r.poster_path   ? `${TMDB_IMAGE_BASE}${r.poster_path}`     : null,
-    backdropUrl:r.backdrop_path ? `${TMDB_BACKDROP_BASE}${r.backdrop_path}` : null,
-    overview:   r.overview || '',
-    tmdbRating: r.vote_average  ? r.vote_average.toFixed(1) : null,
-    tmdbTitle:  r.title || r.name || '',
-    tmdbYear:   (r.release_date || r.first_air_date || '').slice(0, 4),
+    tmdbId:      r.id,
+    posterUrl:   r.poster_path   ? `${TMDB_IMAGE_BASE}${r.poster_path}`      : null,
+    backdropUrl: r.backdrop_path ? `${TMDB_BACKDROP_BASE}${r.backdrop_path}` : null,
+    overview:    r.overview || '',
+    tmdbRating:  r.vote_average  ? r.vote_average.toFixed(1) : null,
+    tmdbTitle:   r.title || r.name || '',
+    tmdbYear:    (r.release_date || r.first_air_date || '').slice(0, 4),
   };
 }
 
@@ -86,13 +111,19 @@ async function fetchFirstResult(endpoint, title, yearParam) {
 export async function searchTMDB(title, year, type) {
   if (!TMDB_API_KEY || !title) return null;
 
-  // User override takes priority over everything
+  // User override takes priority
   const override = getOverride(type, title, year);
   if (override !== undefined) return override;
 
-  const key = cacheKey(type, title, year);
-  const cached = fromCache(key);
-  if (cached !== undefined && cached !== null) return cached; // skip stale null entries
+  // Check RTDB-backed in-memory cache
+  const mcKey = rtdbSafeKey(type, title, year);
+  if (_mediaCache && mcKey in _mediaCache) return _mediaCache[mcKey];
+
+  // If RTDB not configured, fall back to localStorage
+  if (!FIREBASE_DB_URL) {
+    const lsCached = fromCache(`tmdb:${type}:${title.toLowerCase().replace(/\s+/g, '_')}:${year || ''}`);
+    if (lsCached !== undefined && lsCached !== null) return lsCached;
+  }
 
   const endpoint = type === 'movie' ? 'search/movie' : 'search/tv';
   const yearParam = year
@@ -100,17 +131,20 @@ export async function searchTMDB(title, year, type) {
     : '';
 
   try {
-    // Try with year first; if no hit, retry without year
     let r = year ? await fetchFirstResult(endpoint, title, yearParam) : null;
     if (!r) r = await fetchFirstResult(endpoint, title, '');
-    if (!r) return null; // don't cache misses — retry on next load
+    if (!r) return null;
     const data = normaliseResult(r);
-    toCache(key, data);
+    if (FIREBASE_DB_URL) {
+      saveToMediaCache(mcKey, data);
+    } else {
+      toCache(`tmdb:${type}:${title.toLowerCase().replace(/\s+/g, '_')}:${year || ''}`, data);
+    }
     return data;
   } catch { return null; }
 }
 
-// Fetch multiple candidates for the "wrong match" picker — searches without year for broader results
+// Fetch multiple candidates for the "wrong match" picker
 export async function searchTMDBMultiple(title, type) {
   if (!TMDB_API_KEY || !title) return [];
 
@@ -125,12 +159,14 @@ export async function searchTMDBMultiple(title, type) {
   } catch { return []; }
 }
 
-async function getImdbId(tmdbId) {
-  const key = `tmdb:imdbid:${tmdbId}`;
+// ─── IMDB ID lookup (cached in localStorage) ──────────────────────────────────
+
+async function getImdbId(tmdbId, mediaType = 'tv') {
+  const key = `tmdb:imdbid:${mediaType}:${tmdbId}`;
   const cached = fromCache(key);
   if (cached !== undefined) return cached;
   try {
-    const res = await fetch(`${BASE}/tv/${tmdbId}/external_ids?api_key=${TMDB_API_KEY}`);
+    const res = await fetch(`${BASE}/${mediaType}/${tmdbId}/external_ids?api_key=${TMDB_API_KEY}`);
     if (!res.ok) return null;
     const json = await res.json();
     const imdbId = json.imdb_id || null;
@@ -138,6 +174,38 @@ async function getImdbId(tmdbId) {
     return imdbId;
   } catch { return null; }
 }
+
+// ─── OMDB show-level info (cached in localStorage) ───────────────────────────
+
+export async function fetchOmdbShowInfo(tmdbId, mediaType) {
+  if (!OMDB_API_KEY || !TMDB_API_KEY || !tmdbId) return null;
+
+  const key = `omdb:show:${mediaType}:${tmdbId}`;
+  const cached = fromCache(key);
+  if (cached !== undefined) return cached;
+
+  const imdbId = await getImdbId(tmdbId, mediaType);
+  if (!imdbId) { toCache(key, null); return null; }
+
+  try {
+    const res = await fetch(`https://www.omdbapi.com/?i=${imdbId}&apikey=${OMDB_API_KEY}`);
+    if (!res.ok) { toCache(key, null); return null; }
+    const json = await res.json();
+    if (json.Response !== 'True') { toCache(key, null); return null; }
+
+    const rt = json.Ratings?.find(r => r.Source === 'Rotten Tomatoes')?.Value || null;
+    const data = {
+      rating:         json.imdbRating  !== 'N/A' ? json.imdbRating  : null,
+      votes:          json.imdbVotes   !== 'N/A' ? json.imdbVotes   : null,
+      rottenTomatoes: rt,
+      plot:           json.Plot        !== 'N/A' ? json.Plot        : null,
+    };
+    toCache(key, data);
+    return data;
+  } catch { toCache(key, null); return null; }
+}
+
+// ─── Episode ratings per season (cached in localStorage, fetched lazily) ──────
 
 export async function fetchSeasonStats(tmdbId) {
   if (!TMDB_API_KEY || !tmdbId) return null;
@@ -147,15 +215,13 @@ export async function fetchSeasonStats(tmdbId) {
   if (cached !== undefined) return cached;
 
   try {
-    // Get number of seasons from TMDB
     const showRes = await fetch(`${BASE}/tv/${tmdbId}?api_key=${TMDB_API_KEY}`);
     if (!showRes.ok) return null;
     const showJson = await showRes.json();
     const seasons = (showJson.seasons || []).filter(s => s.season_number > 0);
     if (!seasons.length) return null;
 
-    // Get IMDB ID for OMDB lookups
-    const imdbId = OMDB_API_KEY ? await getImdbId(tmdbId) : null;
+    const imdbId = OMDB_API_KEY ? await getImdbId(tmdbId, 'tv') : null;
 
     const stats = await Promise.all(seasons.map(async s => {
       const key = `omdb:season:${tmdbId}:${s.season_number}`;
@@ -202,6 +268,8 @@ export async function fetchSeasonStats(tmdbId) {
     return result;
   } catch { return null; }
 }
+
+// ─── Trailer ──────────────────────────────────────────────────────────────────
 
 export async function fetchTrailer(tmdbId, mediaType) {
   if (!TMDB_API_KEY || !tmdbId) return null;
