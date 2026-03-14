@@ -7,7 +7,7 @@ const SEASON_COLORS = [
   '#f97316', '#a855f7',
 ];
 
-function EpisodeRatingChart({ seasons }) {
+function EpisodeRatingChart({ seasons, className = '' }) {
   const [hovered, setHovered] = useState(null);
 
   const allRatings = seasons.flatMap(s => s.episodes.map(e => e.rating));
@@ -31,7 +31,7 @@ function EpisodeRatingChart({ seasons }) {
   for (let n = step; n <= maxEp; n += step) xLabels.push(n);
 
   return (
-    <div className="mt-4">
+    <div className={`mt-4 ${className}`}>
       <p className="text-[11px] text-gray-500 uppercase tracking-wider mb-2">Episode Ratings (IMDB)</p>
 
       <div className="flex flex-wrap gap-x-4 gap-y-1 mb-2">
@@ -218,7 +218,7 @@ export default function MediaModal({ item, onClose, onCorrect }) {
     >
       <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={onClose} />
 
-      <div className="relative bg-[#13131f] rounded-t-2xl sm:rounded-2xl w-full sm:max-w-3xl max-h-[92vh] sm:max-h-[88vh] overflow-y-auto shadow-2xl border border-white/5">
+      <div className="relative bg-[#13131f] rounded-t-2xl sm:rounded-2xl w-full sm:max-w-3xl lg:max-w-5xl max-h-[92vh] sm:max-h-[88vh] overflow-y-auto shadow-2xl border border-white/5">
 
         {/* Hero backdrop (only in main view) */}
         {!picking && item.backdropUrl && (
@@ -260,80 +260,94 @@ export default function MediaModal({ item, onClose, onCorrect }) {
               </div>
             )}
 
-            <div className="flex-1 min-w-0">
-              <h2 className="text-xl sm:text-2xl font-bold text-white leading-tight">{item.title}</h2>
+            <div className={`flex-1 min-w-0 ${seasonStats ? 'lg:grid lg:grid-cols-[1fr_320px] lg:gap-6 lg:items-start' : ''}`}>
+              {/* Left column: text info */}
+              <div>
+                <h2 className="text-xl sm:text-2xl font-bold text-white leading-tight">{item.title}</h2>
 
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2">
-                {item.year && <span className="text-gray-400 text-sm">{item.year}</span>}
-                {item.service && (
-                  <span className="text-xs px-2 py-0.5 rounded bg-white/10 text-gray-300 border border-white/10">
-                    {item.service}
-                  </span>
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2">
+                  {item.year && <span className="text-gray-400 text-sm">{item.year}</span>}
+                  {item.service && (
+                    <span className="text-xs px-2 py-0.5 rounded bg-white/10 text-gray-300 border border-white/10">
+                      {item.service}
+                    </span>
+                  )}
+                  {item.status && (
+                    <span className={`text-sm font-medium ${getStatusColor(item.status)}`}>
+                      {item.status}
+                    </span>
+                  )}
+                  {item.tmdbRating && (
+                    <span className="text-yellow-400 text-sm font-medium">★ {item.tmdbRating} TMDB</span>
+                  )}
+                  {item.rating && (
+                    <span className="text-purple-300 text-sm">IMDB: {item.rating}</span>
+                  )}
+                  {item.rottenTomatoes && (
+                    <span className="text-red-400 text-sm">🍅 {item.rottenTomatoes}</span>
+                  )}
+                  {item.votes && (
+                    <span className="text-gray-500 text-xs">{item.votes} votes</span>
+                  )}
+                </div>
+
+                {trailerKey && (
+                  <a
+                    href={`https://www.youtube.com/watch?v=${trailerKey}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 mt-3 px-4 py-2 bg-red-600 hover:bg-red-500 text-white text-sm font-semibold rounded-lg transition"
+                  >
+                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M8 5v14l11-7z" />
+                    </svg>
+                    Watch Trailer
+                  </a>
                 )}
-                {item.status && (
-                  <span className={`text-sm font-medium ${getStatusColor(item.status)}`}>
-                    {item.status}
-                  </span>
+
+                {genres.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 mt-3">
+                    {genres.map(g => (
+                      <span key={g} className="px-2.5 py-1 bg-white/5 text-gray-400 text-xs rounded-full border border-white/10">
+                        {g}
+                      </span>
+                    ))}
+                  </div>
                 )}
-                {item.tmdbRating && (
-                  <span className="text-yellow-400 text-sm font-medium">★ {item.tmdbRating} TMDB</span>
+
+                {item.overview && (
+                  <p className="text-gray-300 text-sm leading-relaxed mt-4">{item.overview}</p>
                 )}
-                {item.rating && (
-                  <span className="text-purple-300 text-sm">IMDB: {item.rating}</span>
+
+                {item.notes && (
+                  <div className="mt-4 p-3 rounded-xl bg-white/5 border border-white/10">
+                    <p className="text-[11px] text-gray-500 uppercase tracking-wider mb-1.5">My Notes</p>
+                    <p className="text-gray-300 text-sm leading-relaxed">{item.notes}</p>
+                  </div>
                 )}
-                {item.rottenTomatoes && (
-                  <span className="text-red-400 text-sm">🍅 {item.rottenTomatoes}</span>
+
+                {/* Chart shown below on small screens */}
+                {seasonStats && (
+                  <div className="lg:hidden">
+                    <EpisodeRatingChart seasons={seasonStats} />
+                  </div>
                 )}
-                {item.votes && (
-                  <span className="text-gray-500 text-xs">{item.votes} votes</span>
-                )}
+
+                {/* Wrong match button */}
+                <button
+                  onClick={() => setPicking(true)}
+                  className="mt-5 text-xs text-gray-600 hover:text-gray-400 transition underline underline-offset-2"
+                >
+                  Wrong movie/show? Pick a different match →
+                </button>
               </div>
 
-              {trailerKey && (
-                <a
-                  href={`https://www.youtube.com/watch?v=${trailerKey}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 mt-3 px-4 py-2 bg-red-600 hover:bg-red-500 text-white text-sm font-semibold rounded-lg transition"
-                >
-                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M8 5v14l11-7z" />
-                  </svg>
-                  Watch Trailer
-                </a>
-              )}
-
-              {genres.length > 0 && (
-                <div className="flex flex-wrap gap-1.5 mt-3">
-                  {genres.map(g => (
-                    <span key={g} className="px-2.5 py-1 bg-white/5 text-gray-400 text-xs rounded-full border border-white/10">
-                      {g}
-                    </span>
-                  ))}
+              {/* Right column: chart always visible on large screens */}
+              {seasonStats && (
+                <div className="hidden lg:block">
+                  <EpisodeRatingChart seasons={seasonStats} className="mt-0" />
                 </div>
               )}
-
-              {item.overview && (
-                <p className="text-gray-300 text-sm leading-relaxed mt-4">{item.overview}</p>
-              )}
-
-              {item.notes && (
-                <div className="mt-4 p-3 rounded-xl bg-white/5 border border-white/10">
-                  <p className="text-[11px] text-gray-500 uppercase tracking-wider mb-1.5">My Notes</p>
-                  <p className="text-gray-300 text-sm leading-relaxed">{item.notes}</p>
-                </div>
-              )}
-
-              {/* Season episode ratings chart */}
-              {seasonStats && <EpisodeRatingChart seasons={seasonStats} />}
-
-              {/* Wrong match button */}
-              <button
-                onClick={() => setPicking(true)}
-                className="mt-5 text-xs text-gray-600 hover:text-gray-400 transition underline underline-offset-2"
-              >
-                Wrong movie/show? Pick a different match →
-              </button>
             </div>
           </div>
         )}
