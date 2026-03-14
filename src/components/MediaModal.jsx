@@ -184,7 +184,7 @@ export default function MediaModal({ item, onClose, onCorrect }) {
       fetchTrailer(item.tmdbId, item.mediaType).then(key => {
         if (key) setTrailerKey(key);
       });
-      fetchOmdbShowInfo(item.tmdbId, item.mediaType).then(data => {
+      fetchOmdbShowInfo(item.tmdbId, item.mediaType, item.title, item.year).then(data => {
         if (data) setOmdbData(data);
         const err = getOmdbError();
         if (err) setOmdbError(err);

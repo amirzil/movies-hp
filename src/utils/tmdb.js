@@ -185,19 +185,29 @@ function recordOmdbError(json) {
 
 // ─── OMDB show-level info (cached in localStorage) ───────────────────────────
 
-export async function fetchOmdbShowInfo(tmdbId, mediaType) {
+export async function fetchOmdbShowInfo(tmdbId, mediaType, title = null, year = null) {
   if (!OMDB_API_KEY || !TMDB_API_KEY || !tmdbId) return null;
 
   const key = `omdb:show2:${mediaType}:${tmdbId}`;
   const cached = fromCache(key);
   if (cached !== undefined) return cached;
 
+  // Build OMDB URL — prefer IMDB ID lookup, fall back to title search
   const imdbId = await getImdbId(tmdbId, mediaType);
-  if (!imdbId) return null; // don't cache — show might get an IMDB ID later
+  let omdbUrl;
+  if (imdbId) {
+    omdbUrl = `https://www.omdbapi.com/?i=${imdbId}&apikey=${OMDB_API_KEY}`;
+  } else if (title) {
+    const typeParam = mediaType === 'tv' ? '&type=series' : '&type=movie';
+    const yearParam = year ? `&y=${year}` : '';
+    omdbUrl = `https://www.omdbapi.com/?t=${encodeURIComponent(title)}${typeParam}${yearParam}&apikey=${OMDB_API_KEY}`;
+  } else {
+    return null;
+  }
 
   try {
-    const res = await fetch(`https://www.omdbapi.com/?i=${imdbId}&apikey=${OMDB_API_KEY}`);
-    if (!res.ok) return null; // don't cache — retry next time
+    const res = await fetch(omdbUrl);
+    if (!res.ok) return null;
     const json = await res.json();
     if (json.Response !== 'True') { recordOmdbError(json); return null; }
 
@@ -237,6 +247,7 @@ export async function fetchSeasonStats(tmdbId) {
       if (cachedSeason !== undefined) return cachedSeason ? { season: s.season_number, episodes: cachedSeason } : null;
 
       let episodes = null;
+      let fromOmdb = false;
 
       // Try OMDB first (real IMDB ratings)
       if (imdbId && OMDB_API_KEY) {
@@ -249,12 +260,13 @@ export async function fetchSeasonStats(tmdbId) {
               episodes = json.Episodes
                 .filter(e => e.imdbRating !== 'N/A')
                 .map(e => ({ ep: parseInt(e.Episode, 10), rating: parseFloat(e.imdbRating), name: e.Title }));
+              fromOmdb = true;
             }
           }
         } catch {}
       }
 
-      // Fallback to TMDB vote_average
+      // Fallback to TMDB vote_average — serve but don't cache so OMDB is retried next time
       if (!episodes) {
         try {
           const res = await fetch(`${BASE}/tv/${tmdbId}/season/${s.season_number}?api_key=${TMDB_API_KEY}`);
@@ -267,13 +279,15 @@ export async function fetchSeasonStats(tmdbId) {
         } catch {}
       }
 
-      if (!episodes?.length) { toCache(key, null); return null; }
-      toCache(key, episodes);
+      if (!episodes?.length) return null;
+      if (fromOmdb) toCache(key, episodes); // only persist real IMDB data
       return { season: s.season_number, episodes };
     }));
 
     const result = stats.filter(Boolean);
-    toCache(showKey, result);
+    // Only cache the show-level result if every season came from OMDB (season caches are the source of truth)
+    const allFromOmdb = result.every(s => fromCache(`omdb2:season:${tmdbId}:${s.season}`) !== undefined);
+    if (allFromOmdb) toCache(showKey, result);
     return result;
   } catch { return null; }
 }

@@ -13,8 +13,10 @@ async function enrichBatch(items, type, onBatchDone) {
     );
     // Fetch OMDB for each item that got a tmdbId — hits localStorage cache if already fetched
     const omdbResults = await Promise.all(
-      tmdbResults.map(tmdb =>
-        tmdb?.tmdbId ? fetchOmdbShowInfo(tmdb.tmdbId, type) : Promise.resolve(null)
+      tmdbResults.map((tmdb, j) =>
+        tmdb?.tmdbId
+          ? fetchOmdbShowInfo(tmdb.tmdbId, type, tmdb.tmdbTitle || batch[j].title, tmdb.tmdbYear || batch[j].year)
+          : Promise.resolve(null)
       )
     );
     onBatchDone(tmdbResults.map((tmdb, j) => ({ index: i + j, tmdb, omdb: omdbResults[j] })));
