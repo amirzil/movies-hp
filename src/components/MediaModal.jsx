@@ -32,7 +32,7 @@ function EpisodeRatingChart({ seasons }) {
 
   return (
     <div className="mt-4">
-      <p className="text-[11px] text-gray-500 uppercase tracking-wider mb-2">Episode Ratings</p>
+      <p className="text-[11px] text-gray-500 uppercase tracking-wider mb-2">Episode Ratings (TMDB)</p>
 
       <div className="flex flex-wrap gap-x-4 gap-y-1 mb-2">
         {seasons.map((s, i) => (
