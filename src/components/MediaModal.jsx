@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { fetchTrailer, searchTMDBMultiple, saveOverride, fetchSeasonStats, fetchOmdbShowInfo } from '../utils/tmdb.js';
+import { fetchTrailer, searchTMDBMultiple, saveOverride, fetchSeasonStats, fetchOmdbShowInfo, getOmdbError } from '../utils/tmdb.js';
 
 const SEASON_COLORS = [
   '#8b5cf6', '#3b82f6', '#10b981', '#f59e0b',
@@ -171,6 +171,7 @@ export default function MediaModal({ item, onClose, onCorrect }) {
   const [picking, setPicking] = useState(false);
   const [seasonStats, setSeasonStats] = useState(null);
   const [omdbData, setOmdbData] = useState(null);
+  const [omdbError, setOmdbError] = useState(null);
 
   // Fetch trailer, episode stats, and OMDB enrichment on open
   useEffect(() => {
@@ -178,12 +179,15 @@ export default function MediaModal({ item, onClose, onCorrect }) {
     setPicking(false);
     setSeasonStats(null);
     setOmdbData(null);
+    setOmdbError(null);
     if (item.tmdbId && item.mediaType) {
       fetchTrailer(item.tmdbId, item.mediaType).then(key => {
         if (key) setTrailerKey(key);
       });
       fetchOmdbShowInfo(item.tmdbId, item.mediaType).then(data => {
         if (data) setOmdbData(data);
+        const err = getOmdbError();
+        if (err) setOmdbError(err);
       });
       if (item.mediaType === 'tv') {
         fetchSeasonStats(item.tmdbId).then(stats => {
@@ -341,6 +345,16 @@ export default function MediaModal({ item, onClose, onCorrect }) {
                 {seasonStats && (
                   <div className="lg:hidden">
                     <EpisodeRatingChart seasons={seasonStats} />
+                  </div>
+                )}
+
+                {/* OMDB error banner */}
+                {omdbError && (
+                  <div className="mt-4 flex items-start gap-2 px-3 py-2 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs">
+                    <svg className="w-4 h-4 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+                    </svg>
+                    <span>OMDB: {omdbError}</span>
                   </div>
                 )}
 

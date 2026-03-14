@@ -175,6 +175,14 @@ async function getImdbId(tmdbId, mediaType = 'tv') {
   } catch { return null; }
 }
 
+// ─── OMDB error tracking ─────────────────────────────────────────────────────
+
+let _omdbError = null;
+export function getOmdbError() { return _omdbError; }
+function recordOmdbError(json) {
+  if (json?.Response === 'False' && json?.Error) _omdbError = json.Error;
+}
+
 // ─── OMDB show-level info (cached in localStorage) ───────────────────────────
 
 export async function fetchOmdbShowInfo(tmdbId, mediaType) {
@@ -191,7 +199,7 @@ export async function fetchOmdbShowInfo(tmdbId, mediaType) {
     const res = await fetch(`https://www.omdbapi.com/?i=${imdbId}&apikey=${OMDB_API_KEY}`);
     if (!res.ok) return null; // don't cache — retry next time
     const json = await res.json();
-    if (json.Response !== 'True') return null; // don't cache — OMDB might add it later
+    if (json.Response !== 'True') { recordOmdbError(json); return null; }
 
     const rt = json.Ratings?.find(r => r.Source === 'Rotten Tomatoes')?.Value || null;
     const data = {
@@ -236,6 +244,7 @@ export async function fetchSeasonStats(tmdbId) {
           const res = await fetch(`https://www.omdbapi.com/?i=${imdbId}&Season=${s.season_number}&apikey=${OMDB_API_KEY}`);
           if (res.ok) {
             const json = await res.json();
+            if (json.Response !== 'True') { recordOmdbError(json); }
             if (json.Response === 'True' && json.Episodes) {
               episodes = json.Episodes
                 .filter(e => e.imdbRating !== 'N/A')
