@@ -1,3 +1,5 @@
+import { useMemo } from 'react';
+
 function formatFutureDate(raw) {
   if (!raw) return null;
   const d = new Date(raw);
@@ -49,7 +51,32 @@ function StatusBadge({ status }) {
   );
 }
 
+// Returns the worst season if any season avg < 7, otherwise null
+function getQualityDrop(tmdbId) {
+  if (!tmdbId) return null;
+  try {
+    const raw = localStorage.getItem(`omdb:seasons:${tmdbId}`);
+    if (!raw) return null;
+    const { data } = JSON.parse(raw);
+    if (!data?.length) return null;
+    let worst = null;
+    for (const s of data) {
+      if (!s.episodes?.length) continue;
+      const avg = s.episodes.reduce((sum, e) => sum + e.rating, 0) / s.episodes.length;
+      if (avg < 7 && (!worst || avg < worst.avg)) {
+        worst = { season: s.season, avg };
+      }
+    }
+    return worst;
+  } catch { return null; }
+}
+
 export default function MediaCard({ item, onClick }) {
+  const qualityDrop = useMemo(
+    () => item.mediaType === 'tv' ? getQualityDrop(item.tmdbId) : null,
+    [item.tmdbId, item.mediaType]
+  );
+
   return (
     <div
       onClick={() => onClick(item)}
@@ -72,6 +99,21 @@ export default function MediaCard({ item, onClick }) {
           <p className="text-center text-sm font-medium text-white line-clamp-3 leading-snug">{item.title}</p>
           {item.year && <p className="text-gray-500 text-xs mt-1">{item.year}</p>}
         </div>
+      )}
+
+      {/* Quality drop overlay */}
+      {qualityDrop && (
+        <>
+          <div className="absolute inset-0 bg-red-950/60 pointer-events-none z-[5]" />
+          <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none z-[5] gap-1">
+            <svg className="w-14 h-14 text-red-500 drop-shadow-lg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+              <path d="M18 6L6 18M6 6l12 12" />
+            </svg>
+            <span className="bg-red-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full border border-red-400/50">
+              S{qualityDrop.season} · {qualityDrop.avg.toFixed(1)}/10
+            </span>
+          </div>
+        </>
       )}
 
       {/* Always-visible bottom gradient */}
