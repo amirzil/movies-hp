@@ -185,15 +185,25 @@ function recordOmdbError(json) {
 
 // ─── OMDB show-level info (cached in localStorage) ───────────────────────────
 
-export async function fetchOmdbShowInfo(tmdbId, mediaType, title = null, year = null) {
-  if (!OMDB_API_KEY || !TMDB_API_KEY || !tmdbId) return null;
+export async function fetchOmdbShowInfo(tmdbId, mediaType, title = null, year = null, onDebug = null) {
+  const dbg = msg => onDebug?.(msg);
+
+  if (!OMDB_API_KEY) { dbg('No OMDB_API_KEY configured'); return null; }
+  if (!TMDB_API_KEY) { dbg('No TMDB_API_KEY configured'); return null; }
+  if (!tmdbId)       { dbg('No tmdbId'); return null; }
 
   const key = `omdb:show2:${mediaType}:${tmdbId}`;
   const cached = fromCache(key);
-  if (cached !== undefined) return cached;
+  if (cached !== undefined) {
+    dbg(`localStorage cache hit → ${JSON.stringify(cached)}`);
+    return cached;
+  }
+  dbg(`tmdbId=${tmdbId}, no cache, fetching…`);
 
   // Build OMDB URL — prefer IMDB ID lookup, fall back to title search
   const imdbId = await getImdbId(tmdbId, mediaType);
+  dbg(imdbId ? `IMDB ID found: ${imdbId}` : `No IMDB ID in TMDB${title ? `, trying title "${title}"` : ', no title fallback'}`);
+
   let omdbUrl;
   if (imdbId) {
     omdbUrl = `https://www.omdbapi.com/?i=${imdbId}&apikey=${OMDB_API_KEY}`;
@@ -202,13 +212,16 @@ export async function fetchOmdbShowInfo(tmdbId, mediaType, title = null, year = 
     const yearParam = year ? `&y=${year}` : '';
     omdbUrl = `https://www.omdbapi.com/?t=${encodeURIComponent(title)}${typeParam}${yearParam}&apikey=${OMDB_API_KEY}`;
   } else {
+    dbg('No IMDB ID and no title — cannot query OMDB');
     return null;
   }
 
   try {
     const res = await fetch(omdbUrl);
+    dbg(`OMDB HTTP ${res.status}`);
     if (!res.ok) return null;
     const json = await res.json();
+    dbg(`OMDB response: ${JSON.stringify(json)}`);
     if (json.Response !== 'True') { recordOmdbError(json); return null; }
 
     const rt = json.Ratings?.find(r => r.Source === 'Rotten Tomatoes')?.Value || null;
@@ -218,9 +231,10 @@ export async function fetchOmdbShowInfo(tmdbId, mediaType, title = null, year = 
       rottenTomatoes: rt,
       plot:           json.Plot        !== 'N/A' ? json.Plot        : null,
     };
+    dbg(`Parsed: ${JSON.stringify(data)}`);
     toCache(key, data);
     return data;
-  } catch { return null; }
+  } catch (e) { dbg(`fetch error: ${e.message}`); return null; }
 }
 
 // ─── Episode ratings per season (cached in localStorage, fetched lazily) ──────

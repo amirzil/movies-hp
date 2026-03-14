@@ -172,6 +172,7 @@ export default function MediaModal({ item, onClose, onCorrect }) {
   const [seasonStats, setSeasonStats] = useState(null);
   const [omdbData, setOmdbData] = useState(null);
   const [omdbError, setOmdbError] = useState(null);
+  const [omdbDebug, setOmdbDebug] = useState([]);
 
   // Fetch trailer, episode stats, and OMDB enrichment on open
   useEffect(() => {
@@ -180,11 +181,14 @@ export default function MediaModal({ item, onClose, onCorrect }) {
     setSeasonStats(null);
     setOmdbData(null);
     setOmdbError(null);
+    setOmdbDebug([]);
     if (item.tmdbId && item.mediaType) {
       fetchTrailer(item.tmdbId, item.mediaType).then(key => {
         if (key) setTrailerKey(key);
       });
-      fetchOmdbShowInfo(item.tmdbId, item.mediaType, item.title, item.year).then(data => {
+      fetchOmdbShowInfo(item.tmdbId, item.mediaType, item.title, item.year,
+        step => setOmdbDebug(prev => [...prev, step])
+      ).then(data => {
         if (data) setOmdbData(data);
         const err = getOmdbError();
         if (err) setOmdbError(err);
@@ -345,6 +349,18 @@ export default function MediaModal({ item, onClose, onCorrect }) {
                 {seasonStats && (
                   <div className="lg:hidden">
                     <EpisodeRatingChart seasons={seasonStats} />
+                  </div>
+                )}
+
+                {/* OMDB debug panel — shown when no rating was found */}
+                {!rating && omdbDebug.length > 0 && (
+                  <div className="mt-4 p-3 rounded-xl bg-white/5 border border-white/10">
+                    <p className="text-[11px] text-gray-500 uppercase tracking-wider mb-2">OMDB Debug</p>
+                    <div className="space-y-1">
+                      {omdbDebug.map((step, i) => (
+                        <p key={i} className="text-gray-400 text-[11px] font-mono break-all">{step}</p>
+                      ))}
+                    </div>
                   </div>
                 )}
 
