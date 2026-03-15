@@ -1,4 +1,5 @@
 import { TMDB_API_KEY, TMDB_IMAGE_BASE, TMDB_BACKDROP_BASE, CACHE_TTL_MS, FIREBASE_DB_URL, OMDB_API_KEY } from '../config.js';
+import { getAuthToken } from './firebaseAuth.js';
 
 const BASE = 'https://api.themoviedb.org/3';
 
@@ -8,8 +9,9 @@ function rtdbSafeKey(type, title, year) {
   return `${type}__${safe}__${year || 'no_year'}`;
 }
 
-function rtdbUrl(path) {
-  return `${FIREBASE_DB_URL.replace(/\/$/, '')}/${path}.json`;
+function rtdbUrl(path, token = null) {
+  const base = `${FIREBASE_DB_URL.replace(/\/$/, '')}/${path}.json`;
+  return token ? `${base}?auth=${token}` : base;
 }
 
 // ─── In-memory caches loaded from RTDB on startup ────────────────────────────
@@ -42,11 +44,13 @@ function saveToMediaCache(key, data) {
   _mediaCache[key] = data;
   if (!FIREBASE_DB_URL) return;
   // fire and forget
-  fetch(rtdbUrl(`media_cache/${key}`), {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data),
-  }).catch(() => {});
+  getAuthToken().then(token => {
+    fetch(rtdbUrl(`media_cache/${key}`, token), {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    }).catch(() => {});
+  });
 }
 
 // ─── localStorage helpers (episode data + misc small caches) ─────────────────
@@ -73,7 +77,8 @@ export async function saveOverride(type, title, year, data) {
   _overrides[key] = data;
   if (!FIREBASE_DB_URL) return;
   try {
-    await fetch(rtdbUrl(`overrides/${key}`), {
+    const token = await getAuthToken();
+    await fetch(rtdbUrl(`overrides/${key}`, token), {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
