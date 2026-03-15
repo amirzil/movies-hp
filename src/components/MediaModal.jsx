@@ -381,8 +381,8 @@ export default function MediaModal({ item, onClose, onCorrect }) {
                   </div>
                 )}
 
-                {/* OMDB debug panel — shown when no rating was found */}
-                {!rating && omdbDebug.length > 0 && (
+                {/* OMDB debug panel — shown only when OMDB returned nothing at all */}
+                {!omdbData && omdbDebug.length > 0 && (
                   <div className="mt-4 p-3 rounded-xl bg-white/5 border border-white/10">
                     <p className="text-[11px] text-gray-500 uppercase tracking-wider mb-2">OMDB Debug</p>
                     <div className="space-y-1">
