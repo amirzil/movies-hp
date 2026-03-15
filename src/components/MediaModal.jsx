@@ -92,7 +92,7 @@ function EpisodeRatingChart({ seasons, className = '' }) {
                     cx={xPos(i + 1)} cy={yPos(e.rating)} r="3"
                     fill={color} opacity={hovered?.season === s.season && hovered?.ep === i + 1 ? 1 : 0.75}
                     style={{ cursor: 'crosshair' }}
-                    onMouseEnter={() => setHovered({ season: s.season, ep: i + 1, rating: e.rating, name: e.name, color })}
+                    onMouseEnter={() => setHovered({ season: s.season, ep: i + 1, rating: e.rating, name: e.name, isImdb: e.isImdb, color })}
                   />
                 ) : (
                   <circle
@@ -115,7 +115,10 @@ function EpisodeRatingChart({ seasons, className = '' }) {
             </p>
             {hovered.name && <p className="text-white font-medium text-[11px] mb-0.5 max-w-[150px] truncate">{hovered.name}</p>}
             {hovered.rating != null
-              ? <p className="font-semibold" style={{ color: hovered.color }}>★ {hovered.rating.toFixed(1)}</p>
+              ? <p className="font-semibold" style={{ color: hovered.color }}>
+                  ★ {hovered.rating.toFixed(1)}
+                  <span className="text-[9px] text-gray-500 ml-1">{hovered.isImdb ? 'IMDB' : 'TMDB'}</span>
+                </p>
               : <p className="text-gray-500 text-[10px]">Not yet rated</p>
             }
           </div>

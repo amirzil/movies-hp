@@ -270,10 +270,17 @@ export async function fetchSeasonStats(tmdbId) {
       const cachedSeason = fromCache(key);
       if (cachedSeason !== undefined) return cachedSeason ? { season: s.season_number, episodes: cachedSeason } : null;
 
-      let episodes = null;
-      let fromOmdb = false;
+      // Always fetch TMDB for the full, authoritative episode list
+      let tmdbEpisodes = [];
+      try {
+        const res = await fetch(`${BASE}/tv/${tmdbId}/season/${s.season_number}?api_key=${TMDB_API_KEY}`);
+        if (res.ok) tmdbEpisodes = (await res.json()).episodes || [];
+      } catch {}
+      if (!tmdbEpisodes.length) return null;
 
-      // Try OMDB first (real IMDB ratings)
+      // Fetch OMDB ratings indexed by episode number
+      const omdbRatings = {};
+      let hasOmdbData = false;
       if (imdbId && OMDB_API_KEY) {
         try {
           const res = await fetch(`https://www.omdbapi.com/?i=${imdbId}&Season=${s.season_number}&apikey=${OMDB_API_KEY}`);
@@ -281,39 +288,26 @@ export async function fetchSeasonStats(tmdbId) {
             const json = await res.json();
             if (json.Response !== 'True') { recordOmdbError(json); }
             if (json.Response === 'True' && json.Episodes?.length) {
-              const rated = json.Episodes
-                .filter(e => e.imdbRating !== 'N/A')
-                .map(e => ({ ep: parseInt(e.Episode, 10), rating: parseFloat(e.imdbRating), name: e.Title }));
-              if (rated.length) {
-                // Include unrated episodes as placeholders so the full season is represented
-                episodes = json.Episodes.map(e => ({
-                  ep:     parseInt(e.Episode, 10),
-                  rating: e.imdbRating !== 'N/A' ? parseFloat(e.imdbRating) : null,
-                  name:   e.Title,
-                }));
-                fromOmdb = true;
+              for (const e of json.Episodes) {
+                if (e.imdbRating !== 'N/A') {
+                  omdbRatings[parseInt(e.Episode, 10)] = parseFloat(e.imdbRating);
+                  hasOmdbData = true;
+                }
               }
-              // if rated.length === 0 (all N/A), episodes stays null → fall through to TMDB
             }
           }
         } catch {}
       }
 
-      // Fallback to TMDB vote_average — serve but don't cache so OMDB is retried next time
-      if (!episodes) {
-        try {
-          const res = await fetch(`${BASE}/tv/${tmdbId}/season/${s.season_number}?api_key=${TMDB_API_KEY}`);
-          if (res.ok) {
-            const json = await res.json();
-            episodes = (json.episodes || [])
-              .filter(e => e.vote_average > 0)
-              .map(e => ({ ep: e.episode_number, rating: e.vote_average, name: e.name }));
-          }
-        } catch {}
-      }
+      // Merge: TMDB gives us the complete episode list; OMDB ratings take priority per episode
+      const episodes = tmdbEpisodes.map(e => ({
+        ep:     e.episode_number,
+        rating: omdbRatings[e.episode_number] ?? (e.vote_average > 0 ? e.vote_average : null),
+        name:   e.name,
+        isImdb: omdbRatings[e.episode_number] != null,
+      }));
 
-      if (!episodes?.length) return null;
-      if (fromOmdb) toCache(key, episodes); // only persist real IMDB data
+      if (hasOmdbData) toCache(key, episodes); // only cache when we have real IMDB data
       return { season: s.season_number, episodes };
     }));
 
