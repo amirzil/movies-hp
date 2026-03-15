@@ -10,7 +10,8 @@ const SEASON_COLORS = [
 function EpisodeRatingChart({ seasons, className = '' }) {
   const [hovered, setHovered] = useState(null);
 
-  const allRatings = seasons.flatMap(s => s.episodes.map(e => e.rating));
+  const allRatings = seasons.flatMap(s => s.episodes.map(e => e.rating).filter(r => r != null));
+  if (!allRatings.length) return null;
   const minRating = Math.max(0, Math.floor(Math.min(...allRatings) - 0.5));
   const maxRating = Math.min(10, Math.ceil(Math.max(...allRatings) + 0.5));
   const maxEp = Math.max(...seasons.map(s => s.episodes.length));
@@ -67,18 +68,39 @@ function EpisodeRatingChart({ seasons, className = '' }) {
           {/* Lines + dots per season */}
           {seasons.map((s, si) => {
             const color = SEASON_COLORS[si % SEASON_COLORS.length];
-            const pts = s.episodes.map((e, i) => `${xPos(i + 1)},${yPos(e.rating)}`).join(' ');
+            // Build line segments — break at null-rated episodes
+            const segments = [];
+            let current = [];
+            s.episodes.forEach((e, i) => {
+              if (e.rating != null) {
+                current.push(`${xPos(i + 1)},${yPos(e.rating)}`);
+              } else {
+                if (current.length > 1) segments.push(current.join(' '));
+                current = [];
+              }
+            });
+            if (current.length > 1) segments.push(current.join(' '));
             return (
               <g key={s.season}>
-                <polyline points={pts} fill="none" stroke={color} strokeWidth="1.5"
-                  strokeLinejoin="round" strokeLinecap="round" opacity="0.8" />
-                {s.episodes.map((e, i) => (
+                {segments.map((pts, si2) => (
+                  <polyline key={si2} points={pts} fill="none" stroke={color} strokeWidth="1.5"
+                    strokeLinejoin="round" strokeLinecap="round" opacity="0.8" />
+                ))}
+                {s.episodes.map((e, i) => e.rating != null ? (
                   <circle
                     key={i}
                     cx={xPos(i + 1)} cy={yPos(e.rating)} r="3"
                     fill={color} opacity={hovered?.season === s.season && hovered?.ep === i + 1 ? 1 : 0.75}
                     style={{ cursor: 'crosshair' }}
                     onMouseEnter={() => setHovered({ season: s.season, ep: i + 1, rating: e.rating, name: e.name, color })}
+                  />
+                ) : (
+                  <circle
+                    key={i}
+                    cx={xPos(i + 1)} cy={MT + chartH / 2} r="2"
+                    fill="none" stroke={color} strokeWidth="1" opacity="0.3"
+                    style={{ cursor: 'crosshair' }}
+                    onMouseEnter={() => setHovered({ season: s.season, ep: i + 1, rating: null, name: e.name, color })}
                   />
                 ))}
               </g>
@@ -92,7 +114,10 @@ function EpisodeRatingChart({ seasons, className = '' }) {
               S{String(hovered.season).padStart(2, '0')} E{String(hovered.ep).padStart(2, '0')}
             </p>
             {hovered.name && <p className="text-white font-medium text-[11px] mb-0.5 max-w-[150px] truncate">{hovered.name}</p>}
-            <p className="font-semibold" style={{ color: hovered.color }}>★ {hovered.rating.toFixed(1)}</p>
+            {hovered.rating != null
+              ? <p className="font-semibold" style={{ color: hovered.color }}>★ {hovered.rating.toFixed(1)}</p>
+              : <p className="text-gray-500 text-[10px]">Not yet rated</p>
+            }
           </div>
         )}
       </div>

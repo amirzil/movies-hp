@@ -61,8 +61,9 @@ function getQualityDrop(tmdbId) {
     if (!data?.length) return null;
     let worst = null;
     for (const s of data) {
-      if (!s.episodes?.length) continue;
-      const avg = s.episodes.reduce((sum, e) => sum + e.rating, 0) / s.episodes.length;
+      const rated = s.episodes?.filter(e => e.rating != null);
+      if (!rated?.length) continue;
+      const avg = rated.reduce((sum, e) => sum + e.rating, 0) / rated.length;
       if (avg < 7 && (!worst || avg < worst.avg)) {
         worst = { season: s.season, avg };
       }

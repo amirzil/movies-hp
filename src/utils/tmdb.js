@@ -280,11 +280,20 @@ export async function fetchSeasonStats(tmdbId) {
           if (res.ok) {
             const json = await res.json();
             if (json.Response !== 'True') { recordOmdbError(json); }
-            if (json.Response === 'True' && json.Episodes) {
-              episodes = json.Episodes
+            if (json.Response === 'True' && json.Episodes?.length) {
+              const rated = json.Episodes
                 .filter(e => e.imdbRating !== 'N/A')
                 .map(e => ({ ep: parseInt(e.Episode, 10), rating: parseFloat(e.imdbRating), name: e.Title }));
-              fromOmdb = true;
+              if (rated.length) {
+                // Include unrated episodes as placeholders so the full season is represented
+                episodes = json.Episodes.map(e => ({
+                  ep:     parseInt(e.Episode, 10),
+                  rating: e.imdbRating !== 'N/A' ? parseFloat(e.imdbRating) : null,
+                  name:   e.Title,
+                }));
+                fromOmdb = true;
+              }
+              // if rated.length === 0 (all N/A), episodes stays null → fall through to TMDB
             }
           }
         } catch {}
