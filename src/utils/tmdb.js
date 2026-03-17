@@ -22,7 +22,8 @@ let _mediaCache = null; // TMDB search results
 export async function loadOverrides() {
   if (!FIREBASE_DB_URL) return;
   try {
-    const res = await fetch(rtdbUrl('overrides'));
+    const token = await getAuthToken();
+    const res = await fetch(rtdbUrl('overrides', token));
     _overrides = res.ok ? (await res.json() || {}) : {};
   } catch {
     _overrides = {};
@@ -32,7 +33,8 @@ export async function loadOverrides() {
 export async function loadMediaCache() {
   if (!FIREBASE_DB_URL) { _mediaCache = {}; return; }
   try {
-    const res = await fetch(rtdbUrl('media_cache'));
+    const token = await getAuthToken();
+    const res = await fetch(rtdbUrl('media_cache', token));
     _mediaCache = res.ok ? (await res.json() || {}) : {};
   } catch {
     _mediaCache = {};
