@@ -11,6 +11,19 @@ function formatFutureDate(raw) {
   return `${dd}/${mm}/${yy}`;
 }
 
+function formatRuntime(runtime) {
+  if (!runtime) return null;
+  const match = runtime.match(/(\d+)/);
+  if (!match) return null;
+  const mins = parseInt(match[1], 10);
+  if (isNaN(mins) || mins === 0) return null;
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  if (h === 0) return `${m}m`;
+  if (m === 0) return `${h}h`;
+  return `${h}h ${m}m`;
+}
+
 function noSubs(subs) {
   const v = subs?.trim().toLowerCase();
   return v === 'n' || v === 'no';
@@ -129,6 +142,9 @@ export default function MediaCard({ item, onClick }) {
         {/* Year + last episode + rating — always visible */}
         <div className="flex items-center gap-2 flex-wrap">
           {item.year && <span className="text-gray-300 text-sm">{item.year}</span>}
+          {item.mediaType === 'movie' && formatRuntime(item.runtime) && (
+            <span className="text-gray-400 text-xs">· {formatRuntime(item.runtime)}</span>
+          )}
           {formatFutureDate(item.lastEpisode) && (
             <span className="text-gray-400 text-sm">· {formatFutureDate(item.lastEpisode)}</span>
           )}

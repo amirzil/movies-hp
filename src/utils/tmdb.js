@@ -242,6 +242,8 @@ export async function fetchOmdbShowInfo(tmdbId, mediaType, title = null, year = 
       votes:          json.imdbVotes   !== 'N/A' ? json.imdbVotes   : null,
       rottenTomatoes: rt,
       plot:           json.Plot        !== 'N/A' ? json.Plot        : null,
+      runtime:        json.Runtime     !== 'N/A' ? json.Runtime     : null,
+      imdbId:         json.imdbID      !== 'N/A' ? json.imdbID      : (imdbId || null),
     };
     dbg(`Parsed: ${JSON.stringify(data)}`);
     toCache(key, data);

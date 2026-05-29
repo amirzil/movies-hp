@@ -67,6 +67,8 @@ export function useMediaData() {
                 rating:         existing.rating         || omdb?.rating,
                 votes:          existing.votes          || omdb?.votes,
                 rottenTomatoes: existing.rottenTomatoes || omdb?.rottenTomatoes,
+                runtime:        existing.runtime        || omdb?.runtime,
+                imdbId:         existing.imdbId         || omdb?.imdbId,
               };
             });
             return next;
@@ -90,6 +92,7 @@ export function useMediaData() {
                 rating:         existing.rating         || omdb?.rating,
                 votes:          existing.votes          || omdb?.votes,
                 rottenTomatoes: existing.rottenTomatoes || omdb?.rottenTomatoes,
+                imdbId:         existing.imdbId         || omdb?.imdbId,
               };
             });
             return next;

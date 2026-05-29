@@ -254,6 +254,7 @@ export default function MediaModal({ item, onClose, onCorrect }) {
   const votes          = item.votes          || omdbData?.votes          || null;
   const rottenTomatoes = item.rottenTomatoes || omdbData?.rottenTomatoes || null;
   const overview       = item.overview       || omdbData?.plot           || null;
+  const imdbId         = item.imdbId         || omdbData?.imdbId         || null;
 
   const genres = item.genre
     ? item.genre.split(',').map(g => g.trim()).filter(Boolean)
@@ -329,7 +330,19 @@ export default function MediaModal({ item, onClose, onCorrect }) {
                     <span className="text-yellow-400 text-sm font-medium">★ {item.tmdbRating} TMDB</span>
                   )}
                   {rating && (
-                    <span className="text-purple-300 text-sm">IMDB: {rating}</span>
+                    imdbId ? (
+                      <a
+                        href={`https://www.imdb.com/title/${imdbId}/`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-purple-300 text-sm hover:text-purple-200 hover:underline transition-colors"
+                        onClick={e => e.stopPropagation()}
+                      >
+                        IMDB: {rating}
+                      </a>
+                    ) : (
+                      <span className="text-purple-300 text-sm">IMDB: {rating}</span>
+                    )
                   )}
                   {rottenTomatoes && (
                     <span className="text-red-400 text-sm">🍅 {rottenTomatoes}</span>
