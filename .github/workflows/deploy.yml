@@ -23,6 +23,8 @@ jobs:
         run: npm run build
         env:
           VITE_TMDB_API_KEY: ${{ secrets.VITE_TMDB_API_KEY }}
+          VITE_OMDB_API_KEY: ${{ secrets.VITE_OMDB_API_KEY }}
+          VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}
           VITE_FIREBASE_DB_URL: https://movies-watchlist-hp-default-rtdb.firebaseio.com
           VITE_SHEET_ID: ${{ secrets.VITE_SHEET_ID }}
 
