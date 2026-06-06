@@ -246,7 +246,7 @@ export async function fetchOmdbShowInfo(tmdbId, mediaType, title = null, year = 
       imdbId:         json.imdbID      !== 'N/A' ? json.imdbID      : (imdbId || null),
     };
     dbg(`Parsed: ${JSON.stringify(data)}`);
-    toCache(key, data);
+    if (data.rating) toCache(key, data);
     return data;
   } catch (e) { dbg(`fetch error: ${e.message}`); return null; }
 }
