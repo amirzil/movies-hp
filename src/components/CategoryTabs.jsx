@@ -1,7 +1,8 @@
-export default function CategoryTabs({ activeTab, onTabChange, movieCount, seriesCount }) {
+export default function CategoryTabs({ activeTab, onTabChange, movieCount, seriesCount, watchedCount }) {
   const tabs = [
     { id: 'movies', label: 'Movies', count: movieCount },
     { id: 'series', label: 'Series', count: seriesCount },
+    { id: 'watched', label: 'Watched', count: watchedCount },
   ];
 
   return (
