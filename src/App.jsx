@@ -38,9 +38,9 @@ export default function App() {
   const [filters, setFilters] = useState({ genre: '', status: '', service: '', search: '' });
   const [sort, setSort] = useState('');
   const [posterSize, setPosterSize] = useState('md');
-  const { movies, series, loading, error, overrideItem } = useMediaData();
+  const { movies, series, watched, loading, error, overrideItem } = useMediaData();
 
-  const items = activeTab === 'movies' ? movies : series;
+  const items = activeTab === 'movies' ? movies : activeTab === 'series' ? series : watched;
 
   const filtered = useMemo(() => applyFilters(items, filters), [items, filters]);
   const displayed = useMemo(() => applySort(filtered, sort), [filtered, sort]);
@@ -92,6 +92,7 @@ export default function App() {
         onTabChange={handleTabChange}
         movieCount={movies.length}
         seriesCount={series.length}
+        watchedCount={watched.length}
       />
 
       {!loading && (
