@@ -71,3 +71,72 @@ ahead of the `"source": "**"` rewrite, as assumed.
 **Watch for:** GitHub auto-disables scheduled workflows after 60 days of
 repo inactivity — if this repo goes quiet for 2 months, the cron (not just
 push) stops firing until someone re-enables it in the Actions tab.
+
+## 2026-09-26 — Personal IMDb ratings + current-season indicator
+
+**Context:** wanted "my rating" shown on Watched-tab items, and on Series-tab
+items where earlier seasons are already watched, plus an indicator of which
+season is currently airing/completed for those.
+
+**Investigated:** IMDb blocks direct scraping hard — plain `curl` on the
+ratings page got a 202 bot-challenge with an empty body; a real (headless
+*and* headed) browser via agent-browser got an interactive "Human
+Verification" CAPTCHA wall, even authenticated. This is very likely IP-
+reputation based (datacenter IP), not a headless-detection trick, since a
+real Chrome hit it too. Confirmed the same document-route block applies even
+with a valid session cookie attached.
+
+However, IMDb's own frontend runs on a public GraphQL API
+(`api.graphql.imdb.com`) that is *not* behind that same wall — a captured
+sidebar request replayed via plain `curl` from this same (challenge-walled)
+environment returned 200 with real data. Better still: raw ad-hoc GraphQL
+queries are accepted (only introspection is blocked), so rather than being
+limited to whatever persisted query IMDb's frontend happens to send, a
+custom query requesting `title.userRating { value date }` (discovered by
+trial against the schema) returns the exact personal-rating field, which no
+captured frontend request even asked for. Fetched and verified all 856/856
+ratings this way, cleanly paginated.
+
+**Decided:** `scripts/sync-imdb-ratings.mjs` + `.github/workflows/
+sync-imdb-ratings.yml` (`workflow_dispatch` only — no schedule, see below),
+using a session cookie stored as the `IMDB_COOKIE` secret (`IMDB_USER_ID` =
+`ur45409091`, not secret, from the ratings-page GraphQL calls). Writes
+`{imdbId: {value, date}}` to Firebase RTDB at `/imdbRatings`, the same
+anonymous-auth pattern the app already uses for `/overrides` and
+`/media_cache` (empirically tested: a fresh anon sign-in can write a new
+top-level RTDB node with no rule changes needed).
+
+App reads it via `loadImdbRatings()` in `tmdb.js`, attached as `item.myRating`
+once `imdbId` resolves (`useMediaData.js`), rendered in `MediaCard.jsx` as
+"Me {rating}". For series, `getCurrentSeasonInfo()` derives the latest
+*aired-or-airing* season from TMDB's `last_episode_to_air`/
+`next_episode_to_air` (deliberately not the full `seasons[]` list, so an
+announced-but-unaired season is never shown), gated on already having a
+`myRating` for that show — shown as "S{n}[ airing]".
+
+**Rejected:**
+- *Manual CSV export → new Sheet tab.* Zero ToS ambiguity, no cookie
+  expiry to manage — the clean fallback if the GraphQL approach ever breaks
+  for good. Rejected only because the GraphQL path turned out to work and is
+  push-button once set up.
+- *Scheduled sync (cron), not just manual.* The session cookie expires
+  periodically (unlike the deploy secrets) — a cron would fail silently
+  until someone noticed ratings were stale. Manual `workflow_dispatch` makes
+  that failure visible instead of hidden.
+- *Rating granularity: series vs. per-season.* Settled empirically instead
+  of asking — the 856 ratings include 0 `tvSeason` entries (474 movie, 285
+  tvSeries, 69 tvMiniSeries, 9 tvEpisode as a rare exception), confirming
+  whole-series-level rating is the actual pattern.
+
+**Caveat flagged to the user, explicitly accepted:** every response from
+this API carries IMDb's own disclaimer that "public, commercial, and/or
+non-private use... is not allowed," and this app is deployed to a public
+URL. Not resolved one way or the other — a conscious risk the user chose to
+accept, not a settled legal conclusion.
+
+**Maintenance:** `IMDB_COOKIE` **will** expire eventually. When the sync
+workflow starts failing, re-capture from a logged-in browser (DevTools →
+Network → filter `graphql` → find a `RatingsPage` request → right-click →
+Copy → Copy as cURL → save to a file, never paste the cookie into chat) and
+`gh secret set IMDB_COOKIE < file`. `IMDB_USER_ID` (`ur45409091`) does not
+expire.
