@@ -4,6 +4,11 @@ on:
   push:
     branches:
       - main
+  schedule:
+    # Safety net: pushes to main have occasionally failed to dispatch a run
+    # (observed 2026-08-13 -> 2026-09-24 gap with no explanation found). This
+    # catches that by redeploying whenever production drifts from main.
+    - cron: '*/30 * * * *'
 
 jobs:
   deploy:
@@ -11,15 +16,29 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Check if production already matches this commit
+        id: check
+        run: |
+          LIVE_SHA=$(curl -s -f https://movies-watchlist-hp.web.app/version.txt || echo "none")
+          echo "Live: $LIVE_SHA / HEAD: ${{ github.sha }}"
+          if [ "$LIVE_SHA" = "${{ github.sha }}" ]; then
+            echo "up_to_date=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "up_to_date=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - uses: actions/setup-node@v4
+        if: steps.check.outputs.up_to_date == 'false'
         with:
           node-version: 20
           cache: npm
 
       - name: Install dependencies
+        if: steps.check.outputs.up_to_date == 'false'
         run: npm ci
 
       - name: Build
+        if: steps.check.outputs.up_to_date == 'false'
         run: npm run build
         env:
           VITE_TMDB_API_KEY: ${{ secrets.VITE_TMDB_API_KEY }}
@@ -28,7 +47,12 @@ jobs:
           VITE_FIREBASE_DB_URL: https://movies-watchlist-hp-default-rtdb.firebaseio.com
           VITE_SHEET_ID: ${{ secrets.VITE_SHEET_ID }}
 
+      - name: Stamp build with commit SHA
+        if: steps.check.outputs.up_to_date == 'false'
+        run: echo "${{ github.sha }}" > dist/version.txt
+
       - name: Deploy to Firebase Hosting
+        if: steps.check.outputs.up_to_date == 'false'
         run: npx firebase-tools deploy --only hosting --non-interactive
         env:
           FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
