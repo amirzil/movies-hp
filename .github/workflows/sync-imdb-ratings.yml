@@ -1,0 +1,26 @@
+name: Sync IMDb Ratings
+
+# Manual trigger only. The IMDb session cookie (IMDB_COOKIE secret) expires
+# periodically — when it does, this will start failing and needs a fresh
+# cookie captured from a logged-in browser (DevTools → Network → a graphql
+# request → Copy as cURL) and re-saved with `gh secret set IMDB_COOKIE`.
+on:
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Sync ratings from IMDb to Firebase
+        run: node scripts/sync-imdb-ratings.mjs
+        env:
+          IMDB_COOKIE: ${{ secrets.IMDB_COOKIE }}
+          IMDB_USER_ID: ${{ secrets.IMDB_USER_ID }}
+          VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}
+          VITE_FIREBASE_DB_URL: https://movies-watchlist-hp-default-rtdb.firebaseio.com

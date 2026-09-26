@@ -41,6 +41,20 @@ export async function loadMediaCache() {
   }
 }
 
+// Personal IMDb ratings, synced separately (see scripts/sync-imdb-ratings.mjs)
+// into RTDB at /imdbRatings, keyed by IMDb title id (tconst). Returns
+// { [imdbId]: { value, date } }.
+export async function loadImdbRatings() {
+  if (!FIREBASE_DB_URL) return {};
+  try {
+    const token = await getAuthToken();
+    const res = await fetch(rtdbUrl('imdbRatings', token));
+    return res.ok ? (await res.json() || {}) : {};
+  } catch {
+    return {};
+  }
+}
+
 function saveToMediaCache(key, data) {
   if (!_mediaCache) _mediaCache = {};
   _mediaCache[key] = data;
@@ -320,6 +334,36 @@ export async function fetchSeasonStats(tmdbId) {
     const allFromOmdb = result.every(s => fromCache(`omdb2:season:${tmdbId}:${s.season}`) !== undefined);
     if (allFromOmdb) toCache(showKey, result);
     return result;
+  } catch { return null; }
+}
+
+// ─── Current season (cached in localStorage, fetched lazily) ─────────────────
+
+// Which season has actually aired, for the "still airing" / "watch S3" badge
+// on in-progress series. Uses TMDB's last/next-episode-to-air fields rather
+// than the full seasons list, so it never points at an announced-but-unaired
+// future season.
+export async function getCurrentSeasonInfo(tmdbId) {
+  if (!TMDB_API_KEY || !tmdbId) return null;
+
+  const key = `tmdb:currentseason:${tmdbId}`;
+  const cached = fromCache(key);
+  if (cached !== undefined) return cached;
+
+  try {
+    const res = await fetch(`${BASE}/tv/${tmdbId}?api_key=${TMDB_API_KEY}`);
+    if (!res.ok) return null;
+    const json = await res.json();
+    const lastAired = json.last_episode_to_air;
+    if (!lastAired) return null;
+
+    const nextEp = json.next_episode_to_air;
+    const info = {
+      season: lastAired.season_number,
+      airing: nextEp?.season_number === lastAired.season_number,
+    };
+    toCache(key, info);
+    return info;
   } catch { return null; }
 }
 

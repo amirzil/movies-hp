@@ -151,6 +151,14 @@ export default function MediaCard({ item, onClick }) {
           {item.rating && (
             <span className="text-yellow-400 text-sm font-semibold">★ {item.rating}</span>
           )}
+          {item.myRating != null && (
+            <span className="text-purple-400 text-sm font-semibold">Me {item.myRating}</span>
+          )}
+          {item.mediaType === 'tv' && item.currentSeason && (
+            <span className="text-blue-400 text-xs">
+              · S{item.currentSeason.season}{item.currentSeason.airing ? ' airing' : ''}
+            </span>
+          )}
           {item.rottenTomatoes && (
             <span className="text-red-400 text-sm font-medium opacity-0 group-hover:opacity-100 transition-opacity duration-300">
               🍅 {item.rottenTomatoes}
