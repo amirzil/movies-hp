@@ -140,3 +140,60 @@ Network → filter `graphql` → find a `RatingsPage` request → right-click �
 Copy → Copy as cURL → save to a file, never paste the cookie into chat) and
 `gh secret set IMDB_COOKIE < file`. `IMDB_USER_ID` (`ur45409091`) does not
 expire.
+
+## 2026-09-26 — Client-triggered sync instead of a schedule
+
+**Context:** first built as a monthly `cron` in the workflow itself (simple,
+but the same silent-failure problem as any schedule: nobody would notice a
+dead cookie until they went looking). User asked instead: check staleness
+when the page loads, and only re-fetch if it's been over a month, with an
+on-page message if the cookie's expired.
+
+**The constraint that shaped this:** "when the page opens" means client-side
+— the browser, not CI. This app is a static Vite site; anything under
+`VITE_*` is baked into the public JS bundle, readable by anyone who opens
+the (public-URL) site. The actual `IMDB_COOKIE` must never go there — that
+would hand out the real logged-in IMDb/Amazon session to any visitor. This
+wasn't a tradeoff to weigh, it was a hard no regardless of how the request
+was phrased.
+
+**Decided:** the client only ever touches non-sensitive things —
+`/imdbRatingsMeta/lastSyncDate` (a timestamp, safe to read) and a **separate,
+fine-grained GitHub PAT** (`VITE_GH_TRIGGER_TOKEN`, repo `GH_ACTIONS_TRIGGER_TOKEN`
+secret feeding it) scoped to **Actions: read/write on this repo only** — it
+can start/inspect workflow runs, nothing else, and cannot reach
+`IMDB_COOKIE` or any other secret. `src/utils/imdbRatingsSync.js`: on load,
+reads the checkpoint; if >30 days old (and not already tried in the last
+24h, via a localStorage cooldown), POSTs to GitHub's `workflow_dispatch` API
+to run `sync-imdb-ratings.yml`. Separately reads that workflow's last run
+`conclusion`; if `failure`, `App.jsx` shows an amber banner ("sync is
+failing — cookie likely expired").
+
+Also made the sync script itself incremental at the same time: sorts by
+rating date descending, stops as soon as it reaches an already-synced date
+(the same `lastSyncDate` checkpoint), and `PATCH`-merges only new/changed
+keys into `/imdbRatings` instead of overwriting the whole node. A routine
+trigger is one lightweight GraphQL page, not all 856 ratings again.
+
+**Rejected:**
+- *Monthly `cron` in the workflow* (what this replaces). Simplest, but same
+  "fails silently, nobody notices" problem the deploy drift-check exists to
+  avoid — reintroducing it here for the same reason didn't make sense once
+  a better option existed.
+- *Firebase Cloud Function as a proxy.* Fully server-side and genuinely
+  automatic, but requires enabling Firebase's paid Blaze plan for a
+  currently-free static-hosting project — a billing change, not made without
+  asking. Reasonable to revisit if the token-based approach ever proves
+  insufficient.
+- *IMDb cookie (or a broad token) directly in client code.* Not offered as
+  an option at all — flagged and excluded outright as a real account-
+  compromise risk, not a style choice.
+
+**Setup still needed:** `GH_ACTIONS_TRIGGER_TOKEN` must be created manually
+via github.com/settings/personal-access-tokens/new (fine-grained PATs can't
+be created via API/CLI) — repo: movies-hp only, permission: Actions read/
+write only — then `gh secret set GH_ACTIONS_TRIGGER_TOKEN < file`. Until
+that secret exists, `VITE_GH_TRIGGER_TOKEN` builds as empty and the sync
+trigger/banner code no-ops safely (traced through the code paths, not yet
+observed live in a browser: every GH-token-dependent function short-circuits
+on the empty string before making a network call).
