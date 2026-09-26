@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { fetchSheetData, fetchWatchedData } from '../utils/sheets.js';
 import { searchTMDB, loadOverrides, loadMediaCache, loadImdbRatings, fetchOmdbShowInfo, getCurrentSeasonInfo } from '../utils/tmdb.js';
+import { checkImdbRatingsSync } from '../utils/imdbRatingsSync.js';
 import { SHEET_NAMES } from '../config.js';
 
 const BATCH_SIZE = 8;
@@ -46,9 +47,14 @@ export function useMediaData() {
   const [watched, setWatched] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [imdbSyncStatus, setImdbSyncStatus] = useState(null);
 
   useEffect(() => {
     let active = true;
+
+    // Independent of the main data load — checks staleness and, if needed,
+    // asks GitHub Actions to run the sync (see utils/imdbRatingsSync.js).
+    checkImdbRatingsSync().then(status => { if (active) setImdbSyncStatus(status); });
 
     async function load() {
       try {
@@ -168,5 +174,5 @@ export function useMediaData() {
     setWatched(patch);
   }
 
-  return { movies, series, watched, loading, error, overrideItem };
+  return { movies, series, watched, loading, error, overrideItem, imdbSyncStatus };
 }

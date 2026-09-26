@@ -38,7 +38,7 @@ export default function App() {
   const [filters, setFilters] = useState({ genre: '', status: '', service: '', search: '' });
   const [sort, setSort] = useState('');
   const [posterSize, setPosterSize] = useState('md');
-  const { movies, series, watched, loading, error, overrideItem } = useMediaData();
+  const { movies, series, watched, loading, error, overrideItem, imdbSyncStatus } = useMediaData();
 
   const items = activeTab === 'movies' ? movies : activeTab === 'series' ? series : watched;
 
@@ -86,6 +86,12 @@ export default function App() {
         search={filters.search}
         onSearch={s => setFilters(f => ({ ...f, search: s }))}
       />
+
+      {imdbSyncStatus?.syncFailing && (
+        <div className="bg-amber-900/40 border-b border-amber-700/50 text-amber-300 text-sm px-4 py-2 text-center">
+          IMDb ratings sync is failing — the session cookie has likely expired and needs re-capturing.
+        </div>
+      )}
 
       <CategoryTabs
         activeTab={activeTab}

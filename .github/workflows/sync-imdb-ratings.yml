@@ -1,9 +1,19 @@
 name: Sync IMDb Ratings
 
-# Manual trigger only. The IMDb session cookie (IMDB_COOKIE secret) expires
-# periodically — when it does, this will start failing and needs a fresh
-# cookie captured from a logged-in browser (DevTools → Network → a graphql
-# request → Copy as cURL) and re-saved with `gh secret set IMDB_COOKIE`.
+# Triggered by the app itself (see src/utils/imdbRatingsSync.js): on page
+# load, if /imdbRatingsMeta/lastSyncDate is more than 30 days old, the client
+# fires this workflow via a fine-grained token scoped to Actions read/write
+# on this repo only — the actual IMDb cookie never leaves this workflow.
+# Incremental: only pulls ratings newer than the last sync (see script), so
+# a routine run is one lightweight GraphQL page, not all 800+ ratings.
+# "Run workflow" here (or `gh workflow run sync-imdb-ratings.yml`) still
+# works too, for an on-demand resync.
+#
+# The IMDb session cookie (IMDB_COOKIE secret) expires periodically — when a
+# run fails, the app shows a banner (via the same client check reading this
+# workflow's latest run status). To refresh: capture from a logged-in
+# browser (DevTools → Network → a graphql request → Copy as cURL) and
+# re-save with `gh secret set IMDB_COOKIE`.
 on:
   workflow_dispatch:
 
