@@ -39,3 +39,35 @@ and falsely showed no run.
 
 **Note:** the `origin` remote URL has a `gho_` OAuth token embedded in it.
 Consider switching to SSH or a credential helper and rotating that token.
+
+## 2026-09-26 — Added a scheduled drift-check so deploys self-heal
+
+**Context:** the 2026-08-13 missed deploy above had no discoverable cause,
+which means a single `on: push` trigger has no way to notice or recover from
+itself failing silently again.
+
+**Decided:** kept the `push` trigger as-is, and added `schedule: '*/30 * * * *'`
+to `deploy.yml`. Every run (push or scheduled) now stamps its build with
+`dist/version.txt` = `${{ github.sha }}`, fetches the live `version.txt`, and
+only runs install/build/deploy if it differs from `origin/main`'s HEAD. Push
+still deploys immediately; the cron is a same-workflow fallback that redeploys
+within 30 minutes if a push event is ever missed again, with no visible
+no-op cost the rest of the time (one `curl`, skips the rest).
+
+**Rejected:**
+- *`workflow_dispatch` only, no schedule.* Makes manual redeploys easy but
+  doesn't detect a missed deploy — still relies on someone noticing
+  production is stale, which is exactly what didn't happen for two months.
+- *Drift-check + `workflow_dispatch` combined.* Marginally more convenient
+  (manual redeploy without an empty commit) but the user picked the plainer
+  option; can be added later if a manual trigger is ever needed.
+
+**Verified:** confirmed `/version.txt` was previously swallowed by the SPA
+catch-all rewrite (200, `text/html`, served `index.html`) before this change.
+After deploying `cb04d64`, `/version.txt` returns 200, `text/plain`, with the
+exact commit SHA — confirming Firebase Hosting serves a real static file
+ahead of the `"source": "**"` rewrite, as assumed.
+
+**Watch for:** GitHub auto-disables scheduled workflows after 60 days of
+repo inactivity — if this repo goes quiet for 2 months, the cron (not just
+push) stops firing until someone re-enables it in the Actions tab.
