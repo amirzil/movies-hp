@@ -1,24 +1,40 @@
 import { SHEET_ID } from '../config.js';
 
-function parseCSVLine(line) {
-  const result = [];
+// Parses the full CSV text into rows of cells in one pass, respecting quoted
+// fields that span embedded newlines (Google Sheets exports a cell's own
+// line breaks this way). Splitting the text on '\n' before parsing quotes —
+// the previous approach — cuts those cells in half and corrupts the row.
+function parseCSV(text) {
+  const rows = [];
+  let row = [];
   let cell = '';
   let inQuotes = false;
 
-  for (let i = 0; i < line.length; i++) {
-    const ch = line[i];
-    if (ch === '"') {
-      if (inQuotes && line[i + 1] === '"') { cell += '"'; i++; }
-      else inQuotes = !inQuotes;
-    } else if (ch === ',' && !inQuotes) {
-      result.push(cell);
-      cell = '';
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (inQuotes) {
+      if (ch === '"') {
+        if (text[i + 1] === '"') { cell += '"'; i++; }
+        else inQuotes = false;
+      } else {
+        cell += ch;
+      }
+    } else if (ch === '"') {
+      inQuotes = true;
+    } else if (ch === ',') {
+      row.push(cell); cell = '';
+    } else if (ch === '\r') {
+      // ignore — CRLF line endings, the following '\n' ends the row
+    } else if (ch === '\n') {
+      row.push(cell); cell = '';
+      rows.push(row); row = [];
     } else {
       cell += ch;
     }
   }
-  result.push(cell);
-  return result;
+  if (cell !== '' || row.length) { row.push(cell); rows.push(row); }
+
+  return rows.filter(r => r.some(c => c.trim()));
 }
 
 export async function fetchSheetData(sheetName) {
@@ -27,18 +43,15 @@ export async function fetchSheetData(sheetName) {
   if (!res.ok) throw new Error(`Sheet fetch failed: ${res.status}`);
 
   const text = await res.text();
-  const lines = text.split('\n').filter(l => l.trim());
-  if (lines.length < 2) return [];
+  const rows = parseCSV(text);
+  if (rows.length < 2) return [];
 
-  const headers = parseCSVLine(lines[0]).map(h =>
-    h.trim().replace(/^"|"$/g, '').toLowerCase()
-  );
+  const headers = rows[0].map(h => h.trim().toLowerCase());
 
-  return lines.slice(1).map(line => {
-    const vals = parseCSVLine(line);
+  return rows.slice(1).map(vals => {
     const raw = {};
     headers.forEach((h, i) => {
-      raw[h] = (vals[i] || '').trim().replace(/^"|"$/g, '');
+      raw[h] = (vals[i] || '').trim();
     });
 
     // Normalize to consistent field names regardless of sheet column naming
@@ -79,18 +92,15 @@ export async function fetchWatchedData() {
   if (!res.ok) throw new Error(`Sheet fetch failed: ${res.status}`);
 
   const text = await res.text();
-  const lines = text.split('\n').filter(l => l.trim());
-  if (lines.length < 2) return [];
+  const rows = parseCSV(text);
+  if (rows.length < 2) return [];
 
-  const headers = parseCSVLine(lines[0]).map(h =>
-    h.trim().replace(/^"|"$/g, '').toLowerCase()
-  );
+  const headers = rows[0].map(h => h.trim().toLowerCase());
 
-  return lines.slice(1).map(line => {
-    const vals = parseCSVLine(line);
+  return rows.slice(1).map(vals => {
     const raw = {};
     headers.forEach((h, i) => {
-      raw[h] = (vals[i] || '').trim().replace(/^"|"$/g, '');
+      raw[h] = (vals[i] || '').trim();
     });
 
     const isExplicitMovie = raw.comments?.toLowerCase() === 'movie';
