@@ -142,6 +142,18 @@ async function searchByType(title, year, type) {
   return r;
 }
 
+// TMDB's search is fuzzy — a query can return *some* top result even when
+// it's the wrong media type entirely (e.g. "September 5" the movie also
+// loosely matches an unrelated TV special by text search). "No results" is
+// therefore not the only sign the guessed type was wrong; a result whose
+// title isn't actually the query is just as much a miss.
+function isExactTitleMatch(query, result) {
+  if (!result) return false;
+  const norm = s => (s || '').toLowerCase().trim().replace(/[^a-z0-9]+/g, ' ').trim();
+  const resultTitle = result.title || result.name || '';
+  return norm(query) === norm(resultTitle);
+}
+
 // `allowOtherType`: for lists where the sheet doesn't reliably say movie vs
 // TV (currently just the Watched sheet, which mixes both with no dependable
 // marker for an untagged row), try the other media type before giving up
@@ -166,12 +178,22 @@ export async function searchTMDB(title, year, type, { allowOtherType = false } =
   }
 
   try {
-    let r = await searchByType(title, year, type);
+    const primary = await searchByType(title, year, type);
+    let r = primary;
     let matchedType = type;
-    if (!r && allowOtherType) {
-      matchedType = type === 'movie' ? 'tv' : 'movie';
-      r = await searchByType(title, year, matchedType);
+
+    if (allowOtherType && !isExactTitleMatch(title, primary)) {
+      const otherType = type === 'movie' ? 'tv' : 'movie';
+      const other = await searchByType(title, year, otherType);
+      // Prefer an exact match in the other type over a loose (or absent)
+      // match in the guessed type; otherwise keep the guessed type's result
+      // if it found anything at all, same as before.
+      if (isExactTitleMatch(title, other) || (!primary && other)) {
+        r = other;
+        matchedType = otherType;
+      }
     }
+
     if (!r) return null;
     const data = normaliseResult(r, matchedType);
     if (FIREBASE_DB_URL) {
