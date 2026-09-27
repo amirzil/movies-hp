@@ -147,8 +147,15 @@ function PickerGrid({ title, mediaType, onSelect, onCancel }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    searchTMDBMultiple(title, mediaType).then(r => {
-      setResults(r);
+    setLoading(true);
+    // Search both types — the sheet's assumed type isn't always right, and
+    // this picker exists precisely to let a human fix that kind of mismatch.
+    const otherType = mediaType === 'movie' ? 'tv' : 'movie';
+    Promise.all([
+      searchTMDBMultiple(title, mediaType),
+      searchTMDBMultiple(title, otherType),
+    ]).then(([own, other]) => {
+      setResults([...own, ...other]);
       setLoading(false);
     });
   }, [title, mediaType]);
@@ -174,15 +181,18 @@ function PickerGrid({ title, mediaType, onSelect, onCancel }) {
         <div className="grid grid-cols-4 sm:grid-cols-5 gap-3 overflow-y-auto max-h-[50vh]">
           {results.map(r => (
             <button
-              key={r.tmdbId}
+              key={`${r.mediaType}-${r.tmdbId}`}
               onClick={() => onSelect(r)}
               className="group text-left focus:outline-none"
             >
-              <div className="aspect-[2/3] rounded-lg overflow-hidden bg-[#1a1a2e] ring-2 ring-transparent group-hover:ring-purple-500 transition">
+              <div className="relative aspect-[2/3] rounded-lg overflow-hidden bg-[#1a1a2e] ring-2 ring-transparent group-hover:ring-purple-500 transition">
                 {r.posterUrl
                   ? <img src={r.posterUrl} alt={r.tmdbTitle} className="w-full h-full object-cover" />
                   : <div className="w-full h-full flex items-center justify-center p-2 text-center text-gray-600 text-[10px]">{r.tmdbTitle}</div>
                 }
+                <span className="absolute top-1 left-1 bg-black/70 text-gray-300 text-[9px] font-semibold uppercase px-1 py-0.5 rounded leading-none">
+                  {r.mediaType === 'movie' ? 'Movie' : 'TV'}
+                </span>
               </div>
               <p className="text-white text-[11px] font-medium mt-1 line-clamp-1">{r.tmdbTitle}</p>
               {r.tmdbYear && <p className="text-gray-500 text-[10px]">{r.tmdbYear}</p>}
@@ -244,7 +254,10 @@ export default function MediaModal({ item, onClose, onCorrect }) {
   }, []);
 
   function handleSelect(newData) {
-    saveOverride(item.mediaType, item.title, item.year, newData);
+    // The picker now offers both movies and TV shows — save under whichever
+    // type was actually picked, not the item's (possibly wrong) original
+    // guess, so the correction is keyed the way getOverride expects.
+    saveOverride(newData.mediaType || item.mediaType, item.title, item.year, newData);
     onCorrect(item, newData);
     setPicking(false);
   }

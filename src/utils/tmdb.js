@@ -102,9 +102,17 @@ export async function saveOverride(type, title, year, data) {
   } catch {}
 }
 
+// Checks both media types — a manual correction (the "pick the correct
+// match" picker) can save a movie override for an item the sheet guessed
+// was a TV show or vice versa, and that choice is human-confirmed, so
+// there's no false-positive risk in looking both up unconditionally (unlike
+// searchTMDB's automatic allowOtherType fallback, which stays list-gated).
 function getOverride(type, title, year) {
   if (!_overrides) return undefined;
-  return _overrides[rtdbSafeKey(type, title, year)];
+  const own = _overrides[rtdbSafeKey(type, title, year)];
+  if (own !== undefined) return own;
+  const otherType = type === 'movie' ? 'tv' : 'movie';
+  return _overrides[rtdbSafeKey(otherType, title, year)];
 }
 
 // ─── TMDB search ──────────────────────────────────────────────────────────────
