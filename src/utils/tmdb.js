@@ -109,7 +109,7 @@ function getOverride(type, title, year) {
 
 // ─── TMDB search ──────────────────────────────────────────────────────────────
 
-function normaliseResult(r) {
+function normaliseResult(r, mediaType) {
   return {
     tmdbId:      r.id,
     posterUrl:   r.poster_path   ? `${TMDB_IMAGE_BASE}${r.poster_path}`      : null,
@@ -118,6 +118,7 @@ function normaliseResult(r) {
     tmdbRating:  r.vote_average  ? r.vote_average.toFixed(1) : null,
     tmdbTitle:   r.title || r.name || '',
     tmdbYear:    (r.release_date || r.first_air_date || '').slice(0, 4),
+    mediaType,
   };
 }
 
@@ -129,7 +130,25 @@ async function fetchFirstResult(endpoint, title, yearParam) {
   return json.results?.[0] ?? null;
 }
 
-export async function searchTMDB(title, year, type) {
+// Tries the given media type's search endpoint (year-scoped first, then
+// unscoped). Returns null if nothing matched.
+async function searchByType(title, year, type) {
+  const endpoint = type === 'movie' ? 'search/movie' : 'search/tv';
+  const yearParam = year
+    ? (type === 'movie' ? `&year=${year}` : `&first_air_date_year=${year}`)
+    : '';
+  let r = year ? await fetchFirstResult(endpoint, title, yearParam) : null;
+  if (!r) r = await fetchFirstResult(endpoint, title, '');
+  return r;
+}
+
+// `allowOtherType`: for lists where the sheet doesn't reliably say movie vs
+// TV (currently just the Watched sheet, which mixes both with no dependable
+// marker for an untagged row), try the other media type before giving up
+// entirely. Left off by default — the Movies/Series tabs come from
+// dedicated single-type sheets, so a genuinely-failed search there should
+// stay a miss rather than risk a false match against the wrong media type.
+export async function searchTMDB(title, year, type, { allowOtherType = false } = {}) {
   if (!TMDB_API_KEY || !title) return null;
 
   // User override takes priority
@@ -146,16 +165,15 @@ export async function searchTMDB(title, year, type) {
     if (lsCached !== undefined && lsCached !== null) return lsCached;
   }
 
-  const endpoint = type === 'movie' ? 'search/movie' : 'search/tv';
-  const yearParam = year
-    ? (type === 'movie' ? `&year=${year}` : `&first_air_date_year=${year}`)
-    : '';
-
   try {
-    let r = year ? await fetchFirstResult(endpoint, title, yearParam) : null;
-    if (!r) r = await fetchFirstResult(endpoint, title, '');
+    let r = await searchByType(title, year, type);
+    let matchedType = type;
+    if (!r && allowOtherType) {
+      matchedType = type === 'movie' ? 'tv' : 'movie';
+      r = await searchByType(title, year, matchedType);
+    }
     if (!r) return null;
-    const data = normaliseResult(r);
+    const data = normaliseResult(r, matchedType);
     if (FIREBASE_DB_URL) {
       saveToMediaCache(mcKey, data);
     } else {
@@ -176,7 +194,7 @@ export async function searchTMDBMultiple(title, type) {
     const res = await fetch(url);
     if (!res.ok) return [];
     const json = await res.json();
-    return (json.results || []).slice(0, 10).map(normaliseResult);
+    return (json.results || []).slice(0, 10).map(r => normaliseResult(r, type));
   } catch { return []; }
 }
 

@@ -6,17 +6,22 @@ import { SHEET_NAMES } from '../config.js';
 
 const BATCH_SIZE = 8;
 
-async function enrichBatch(items, onBatchDone, imdbRatings) {
+async function enrichBatch(items, onBatchDone, imdbRatings, allowTypeFallback = false) {
   for (let i = 0; i < items.length; i += BATCH_SIZE) {
     const batch = items.slice(i, i + BATCH_SIZE);
     const tmdbResults = await Promise.all(
-      batch.map(item => searchTMDB(item.title, item.year, item.mediaType))
+      batch.map(item => searchTMDB(item.title, item.year, item.mediaType, { allowOtherType: allowTypeFallback }))
     );
+    // The sheet's own mediaType guess can be wrong for the Watched list (see
+    // searchTMDB's allowOtherType); once a real match comes back, its own
+    // mediaType is the one actually confirmed by TMDB and should be trusted
+    // over the sheet's guess for every downstream type-sensitive lookup.
+    const actualTypes = batch.map((item, j) => tmdbResults[j]?.mediaType || item.mediaType);
     // Fetch OMDB for each item that got a tmdbId — hits localStorage cache if already fetched
     const omdbResults = await Promise.all(
       tmdbResults.map((tmdb, j) =>
         tmdb?.tmdbId
-          ? fetchOmdbShowInfo(tmdb.tmdbId, batch[j].mediaType, tmdb.tmdbTitle || batch[j].title, tmdb.tmdbYear || batch[j].year)
+          ? fetchOmdbShowInfo(tmdb.tmdbId, actualTypes[j], tmdb.tmdbTitle || batch[j].title, tmdb.tmdbYear || batch[j].year)
           : Promise.resolve(null)
       )
     );
@@ -26,7 +31,7 @@ async function enrichBatch(items, onBatchDone, imdbRatings) {
     // actually rated (i.e. watched at least part of) this one
     const currentSeasons = await Promise.all(
       batch.map((item, j) =>
-        item.mediaType === 'tv' && myRatings[j] != null && tmdbResults[j]?.tmdbId
+        actualTypes[j] === 'tv' && myRatings[j] != null && tmdbResults[j]?.tmdbId
           ? getCurrentSeasonInfo(tmdbResults[j].tmdbId)
           : Promise.resolve(null)
       )
@@ -37,6 +42,7 @@ async function enrichBatch(items, onBatchDone, imdbRatings) {
       omdb: omdbResults[j],
       myRating: myRatings[j],
       currentSeason: currentSeasons[j],
+      mediaType: actualTypes[j],
     })));
   }
 }
@@ -133,12 +139,16 @@ export function useMediaData() {
           if (!active) return;
           setWatched(prev => {
             const next = [...prev];
-            updates.forEach(({ index, tmdb, omdb, myRating }) => {
+            updates.forEach(({ index, tmdb, omdb, myRating, mediaType }) => {
               if (!tmdb) return;
               const existing = next[index];
               next[index] = {
                 ...tmdb,
                 ...existing,
+                // The Watched sheet can't reliably say movie vs TV for every
+                // row — trust whichever type TMDB actually matched over the
+                // sheet's own guess (see enrichBatch's allowTypeFallback).
+                mediaType:      mediaType || existing.mediaType,
                 posterUrl:      existing.posterUrl      || tmdb.posterUrl,
                 backdropUrl:    existing.backdropUrl    || tmdb.backdropUrl,
                 overview:       existing.overview       || tmdb.overview       || omdb?.plot,
@@ -153,7 +163,7 @@ export function useMediaData() {
             });
             return next;
           });
-        }, imdbRatings);
+        }, imdbRatings, true);
       } catch (e) {
         if (active) { setError(e.message); setLoading(false); }
       }
