@@ -275,3 +275,31 @@ rare cases a bogus season badge for an actual movie).
 Removed the three manual overrides written for this issue earlier — they're
 redundant now (and were keyed `movie__...`, which the app would never have
 looked up anyway while `mediaType` stayed `'tv'` for these rows).
+
+**Same day, follow-up — "why don't we identify September 5?":** the
+fallback above wasn't enough for every case. TMDB's search is fuzzy: guessing
+`'tv'` for "September 5" (a movie) returned a real, non-empty TV result
+("Five Days in September: The Rebirth of an Orchestra" — a loose text match,
+wrong show entirely), so the "only try the other type when the first found
+*nothing*" rule never fired, even though movie search's first result is an
+exact match. Added `isExactTitleMatch` (case/punctuation-insensitive) and
+changed the rule to: accept the guessed type only if it's an exact match;
+otherwise also try the other type and prefer *that* if it's exact (or if the
+guessed type found nothing at all, same as before). Verified all four
+titles reported so far pass before shipping.
+
+**Process note worth remembering:** local `npm run build` verification in
+this worktree was silently meaningless for a while, and I shipped several
+commits on faith in "the build completes" rather than "the code is actually
+in the bundle." The worktree has no `.env` (gitignored, only in the main
+checkout) — with `TMDB_API_KEY` etc. resolving to a compile-time-constant
+`''`, Vite/Rollup provably tree-shook `searchTMDB`'s entire body down to
+`return null;` even with `--minify false`, so grepping the output for new
+code found nothing regardless of what the source actually said. Caught it
+by embedding a string-literal marker directly inside the new function and
+finding it absent even unminified — that's what exposed the missing env,
+not the initial "hash didn't change" observation (which was real, but I
+initially chased it as a caching bug). Fixed by copying `.env` into this
+worktree so local builds here match what CI actually produces. If a local
+build here ever again looks suspiciously unchanged, check for real env vars
+before suspecting a cache.
