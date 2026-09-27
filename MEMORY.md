@@ -252,11 +252,26 @@ reliable positive movie/tv signal once a row is both non-shifted and
 untagged) — not something introduced by this fix, and not touched here,
 since the *sanctioned* fix already exists in the sheet itself:
 
-**Action still needed from the user:** add `movie` to the **Comments**
-column for these three rows in the Watched sheet. Without it, the override
-data above won't actually be picked up (it's keyed by `movie__...`, but the
-app currently looks it up as `tv__...` for these rows since `mediaType`
-defaults to `'tv'`), and leaving `mediaType` wrong for an actual movie also
-risks a wrong/blank "current season" badge (season lookup queries TMDB's
-`/tv/{id}` using a *movie* TMDB id, a different id space). This is a
-manual Google Sheets edit — outside what any tool here can do.
+**Superseded same day — no sheet edit needed after all.** User asked: why
+not just try TV search, then fall back to movie search if nothing matches?
+Implemented exactly that: `searchTMDB` gained an opt-in `allowOtherType`
+flag (default off), enabled only for the Watched list's `enrichBatch` call
+— Movies/Series keep strict single-type search, since their type is certain
+from which sheet a row came from and a genuinely-failed search there
+shouldn't risk a false cross-type match. Verified against all three titles
+before shipping: a plain simulation of the fallback logic against live TMDB
+data resolved all three correctly (movie search succeeding where the
+sheet-guessed tv search came up empty) — same as the manual overrides
+achieved, but automatic and general for any future ambiguous row.
+
+Once a match lands, its *actual* matched type — not the sheet's original
+guess — now also drives the OMDB external-ids lookup and the current-season
+check for that item (both were querying TMDB's `/tv/{id}`-shaped endpoints
+using whatever type the sheet originally guessed; left as `'tv'`, that would
+have meant a movie's TMDB id got queried in the *TV* id space — a different,
+unrelated numbering scheme — silently returning wrong or empty data, or in
+rare cases a bogus season badge for an actual movie).
+
+Removed the three manual overrides written for this issue earlier — they're
+redundant now (and were keyed `movie__...`, which the app would never have
+looked up anyway while `mediaType` stayed `'tv'` for these rows).
