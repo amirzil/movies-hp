@@ -197,3 +197,66 @@ that secret exists, `VITE_GH_TRIGGER_TOKEN` builds as empty and the sync
 trigger/banner code no-ops safely (traced through the code paths, not yet
 observed live in a browser: every GH-token-dependent function short-circuits
 on the empty string before making a network call).
+
+**Update 2026-09-26:** `GH_ACTIONS_TRIGGER_TOKEN` created and set (fine-
+grained PAT, `movies-hp` only, Actions read/write). Verified live: the token
+is in the deployed bundle and a direct API call with it returns 200 against
+the workflow-runs endpoint. Deploy fully wired end to end.
+
+## 2026-09-27 — Fixed three unidentified Watched-list items, found two bugs
+
+**Context:** user reported "The Life of Chuck", "Ainda Estou Aqui", and "The
+Ministry of Ungentlemanly Warfare" weren't showing posters/ratings, with the
+correct IMDb IDs supplied.
+
+**Found — two separate, unrelated root causes:**
+1. **CSV parsing bug** (general, affects any row): `sheets.js` did
+   `text.split('\n')` *before* parsing quotes. Google Sheets exports a cell's
+   own embedded line break as a literal `\n` inside a quoted CSV field —
+   splitting the whole text on `\n` first cuts that field across two
+   physical lines, corrupting the row's column alignment. Both "The Life of
+   Chuck" and "The Ministry of Ungentlemanly Warfare" had an accidental
+   trailing newline typed into their title cell in the sheet, triggering
+   this. Root-caused by literally fetching the sheet's raw CSV and diffing
+   Python's `csv` module's parse against the app's own — the corruption was
+   immediately visible.
+2. **Foreign-title mismatch** (per-item, not a bug in the general sense):
+   "Ainda Estou Aqui" is entered under its original Portuguese title; TMDB
+   indexes the same film as "I'm Still Here" and a title-text search never
+   finds it. No sheet-parsing issue involved — confirmed by fetching the
+   fixed-parser output directly and seeing the row was already well-formed.
+
+**Decided:**
+- Fixed #1 in code: replaced the per-line `parseCSVLine` with a single
+  `parseCSV(text)` that walks the whole response respecting quotes across
+  newlines. Verified against the live sheet before shipping — the corrupted
+  titles came back clean and correctly column-aligned.
+- Fixed #2 (and gave #1's two titles their data immediately, without
+  waiting for next TMDB search) via the app's *existing* override
+  mechanism — the same one `MediaModal`'s "correct this" flow writes to.
+  Looked up each title's real TMDB match via `/find/{imdb_id}` and wrote
+  `posterUrl`/`overview`/`tmdbRating`/`tmdbId`/etc. directly to
+  `/overrides/<key>` in RTDB (merged in via `database:update`, not
+  overwriting the 7 overrides already there from the user's own past
+  corrections). Once `tmdbId` is right, the existing TMDB→OMDB→imdbId
+  chain resolves on its own — including `myRating`, since all three
+  already had personal ratings synced (8, 8, 7) waiting for a working
+  match.
+
+**Found but deliberately not fixed — flagging instead:** these three rows
+are real movies but not shift-detected (their columns are correctly
+aligned, not shifted from a movies-sheet paste) and don't have
+`Comments: movie` set, so `fetchWatchedData` defaults their `mediaType` to
+`'tv'`. That default is a pre-existing, general gap (the sheet has no
+reliable positive movie/tv signal once a row is both non-shifted and
+untagged) — not something introduced by this fix, and not touched here,
+since the *sanctioned* fix already exists in the sheet itself:
+
+**Action still needed from the user:** add `movie` to the **Comments**
+column for these three rows in the Watched sheet. Without it, the override
+data above won't actually be picked up (it's keyed by `movie__...`, but the
+app currently looks it up as `tv__...` for these rows since `mediaType`
+defaults to `'tv'`), and leaving `mediaType` wrong for an actual movie also
+risks a wrong/blank "current season" badge (season lookup queries TMDB's
+`/tv/{id}` using a *movie* TMDB id, a different id space). This is a
+manual Google Sheets edit — outside what any tool here can do.
