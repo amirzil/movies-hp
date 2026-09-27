@@ -303,3 +303,32 @@ initially chased it as a caching bug). Fixed by copying `.env` into this
 worktree so local builds here match what CI actually produces. If a local
 build here ever again looks suspiciously unchanged, check for real env vars
 before suspecting a cache.
+
+## 2026-09-27 — Wrong-match picker now offers movies, not just the guessed type
+
+**Context:** user noticed the "pick the correct match" picker (`MediaModal`'s
+`PickerGrid`) only ever searched the item's own assumed `mediaType` — an
+item guessed `'tv'` could never be manually corrected to a movie in that UI,
+even though that's exactly the ambiguity the Watched-sheet type-fallback
+work this week was about.
+
+**Decided:** `PickerGrid` now fetches both `searchTMDBMultiple(title,
+mediaType)` and the other type, merges the results, and labels each poster
+tile "Movie"/"TV" so they're distinguishable. `handleSelect` now saves the
+override under `newData.mediaType` (whichever type was actually picked),
+not the item's original guess.
+
+That in turn meant `getOverride` needed to check both type keys — the
+Watched sheet's guess for an item doesn't change on the sheet itself, so a
+manually-picked movie override for a `'tv'`-guessed item would otherwise get
+saved correctly but never found again on the next load. Made this
+unconditional (not gated behind `searchTMDB`'s `allowOtherType`, which stays
+Watched-list-only): a saved override is always a human-confirmed choice, so
+there's no false-positive risk in checking both types, unlike the automatic
+search fallback where a wrong guess could silently substitute the wrong
+title.
+
+**Also fixed while there:** `PickerGrid`'s list `key` was `r.tmdbId` alone —
+movie and TV id numbering are separate namespaces in TMDB, so a coincidental
+collision between them could have broken React's reconciliation for that
+tile. Now `${r.mediaType}-${r.tmdbId}`.
