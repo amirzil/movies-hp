@@ -84,24 +84,24 @@ export default function FilterBar({ genres, statuses, services, filters, onFilte
             </button>
           ))}
         </div>
-      </div>
 
-      {/* Returning Shows — series you've already rated, to spot new seasons */}
-      {showReturningFilter && (
-        <div className="flex items-center gap-3">
-          <span className="text-xs text-gray-600 uppercase tracking-wider w-12 flex-shrink-0" />
-          <button
-            onClick={() => onFilterChange({ ...filters, returning: !filters.returning })}
-            className={`px-3 py-1 text-xs rounded-full border transition-all ${
-              filters.returning
-                ? 'bg-purple-500/20 text-purple-300 border-purple-500/40'
-                : 'bg-white/5 text-gray-400 border-white/10 hover:bg-white/10 hover:text-white'
-            }`}
-          >
-            Returning Shows
-          </button>
-        </div>
-      )}
+        {/* Returning Shows — series you've already rated, to spot new seasons */}
+        {showReturningFilter && (
+          <>
+            <span className="w-px h-5 bg-white/10 flex-shrink-0" />
+            <button
+              onClick={() => onFilterChange({ ...filters, returning: !filters.returning })}
+              className={`px-4 py-1.5 text-sm rounded-lg border transition-all ${
+                filters.returning
+                  ? 'bg-purple-500/20 text-purple-300 border-purple-500/40'
+                  : 'bg-white/5 text-gray-400 border-white/10 hover:bg-white/10 hover:text-white'
+              }`}
+            >
+              Returning Shows
+            </button>
+          </>
+        )}
+      </div>
 
       {/* Status filter */}
       {statuses.length > 0 && (
