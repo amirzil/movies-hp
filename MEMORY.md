@@ -343,3 +343,46 @@ at least part of), to help spot ones with a new season out. No new data
 source needed; this is purely a filter over data already being enriched.
 
 Reset to `false` on tab change, consistent with the other filters.
+
+## 2026-10-13 — Service filter duplicates, and index.html caching stale
+
+User reported two things after the Returning Shows deploy: didn't see the
+new filter, and "Prime" shows up twice in the Service filter.
+
+**Service duplicates:** real data problem, not UI — the sheets mix casing
+for the same service: `Prime`/`prime` (List), `Disney`/`disney` (movies,
+Watched), `Kodi`/`kodi` (Watched), plus a stray `"Disney "` with a trailing
+space (Watched). `App.jsx`'s services list deduped on exact string equality,
+so each variant got its own filter button, even though the filter *match*
+itself was already case-insensitive. Fixed by deduping on a normalized
+lowercase/trimmed key and displaying a consistent title-cased label.
+**Not merged:** `Amazon` (Watched) is a separate literal string from
+`Prime` — left alone since collapsing two genuinely different labels into
+one is an editorial call, not a casing bug; flagged to the user rather than
+assumed.
+
+**Missing filter — real cause was caching, not a bad deploy.** Confirmed
+first: the live JS bundle *did* contain the new filter code — so this
+wasn't a repeat of the dead-code-elimination incident. The actual cause:
+`firebase.json` had no `headers` config at all, so Firebase's default
+`max-age=3600` applied uniformly, including to `index.html` itself. A
+browser that loaded the site within the last hour kept serving the old
+`index.html` (pointing at the old content-hashed bundle filename) and never
+even requested the new JS.
+
+**Got the first fix wrong, caught it empirically:** added a `"source":
+"index.html"` no-cache rule — `curl -I` on `/index.html` directly showed
+`no-cache` as expected, but `curl -I` on `/` (what every real visitor
+actually requests) still showed the stale `max-age=3600`. Firebase matches
+header `source` patterns against the *requested* path, evaluated **before**
+the SPA catch-all rewrite resolves it to `/index.html` — so a rule naming
+the destination file never fires for the path people actually hit. Fixed
+with `"source": "**"` → `no-cache`, with a more specific `"source":
+"**/assets/**"` rule for the content-hashed JS/CSS (long-lived immutable
+cache — safe, since every build gets new filenames) listed after it so it
+overrides the catch-all for that one path. `version.txt` now gets no-cache
+for free from the same catch-all (it also needed this, since a CDN-cached
+copy would have undermined the drift-check workflow's whole purpose).
+Verified this version by curling `/` directly post-deploy, not just
+`/index.html` — same "don't trust the single surface test" lesson as the
+missing-`.env` build incident a couple weeks back.
