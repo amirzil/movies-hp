@@ -332,3 +332,14 @@ title.
 movie and TV id numbering are separate namespaces in TMDB, so a coincidental
 collision between them could have broken React's reconciliation for that
 tile. Now `${r.mediaType}-${r.tmdbId}`.
+
+## 2026-10-13 — Added a "Returning Shows" filter on the Series tab
+
+**Decided:** a toggle filter, Series-tab only (`showReturningFilter` prop
+into `FilterBar`, gated on `activeTab === 'series'` in `App.jsx`), using the
+same `item.myRating != null` signal already powering the "Me {rating}" badge
+and the current-season indicator — i.e. series you've already rated (watched
+at least part of), to help spot ones with a new season out. No new data
+source needed; this is purely a filter over data already being enriched.
+
+Reset to `false` on tab change, consistent with the other filters.
