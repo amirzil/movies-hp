@@ -6,6 +6,10 @@ import MediaGrid from './components/MediaGrid.jsx';
 import MediaModal from './components/MediaModal.jsx';
 import { useMediaData } from './hooks/useMediaData.js';
 
+function titleCase(s) {
+  return s.replace(/\S+/g, w => w[0].toUpperCase() + w.slice(1).toLowerCase());
+}
+
 function applyFilters(items, { genre, status, service, search, returning }) {
   return items.filter(item => {
     if (genre     && !item.genre?.toLowerCase().includes(genre.toLowerCase())) return false;
@@ -58,9 +62,20 @@ export default function App() {
     [...new Set(items.map(i => i.status).filter(Boolean))].sort()
   ), [items]);
 
-  const services = useMemo(() => (
-    [...new Set(items.map(i => i.service).filter(Boolean))].sort()
-  ), [items]);
+  const services = useMemo(() => {
+    // The sheets mix casing for the same service (e.g. "Prime"/"prime",
+    // "Disney"/"disney", a stray "Disney " with trailing space) — dedupe
+    // case/whitespace-insensitively instead of showing each variant as its
+    // own filter button.
+    const byKey = new Map();
+    for (const item of items) {
+      const raw = item.service?.trim();
+      if (!raw) continue;
+      const key = raw.toLowerCase();
+      if (!byKey.has(key)) byKey.set(key, titleCase(raw));
+    }
+    return [...byKey.values()].sort();
+  }, [items]);
 
   function handleTabChange(tab) {
     setActiveTab(tab);
