@@ -62,7 +62,7 @@ const SIZE_OPTIONS = [
   { value: 'lg', label: 'L' },
 ];
 
-export default function FilterBar({ genres, statuses, services, filters, onFilterChange, sort, onSortChange, posterSize, onSizeChange }) {
+export default function FilterBar({ genres, statuses, services, filters, onFilterChange, sort, onSortChange, posterSize, onSizeChange, showReturningFilter }) {
   return (
     <div className="max-w-screen-2xl mx-auto px-6 py-2 space-y-2">
 
@@ -85,6 +85,23 @@ export default function FilterBar({ genres, statuses, services, filters, onFilte
           ))}
         </div>
       </div>
+
+      {/* Returning Shows — series you've already rated, to spot new seasons */}
+      {showReturningFilter && (
+        <div className="flex items-center gap-3">
+          <span className="text-xs text-gray-600 uppercase tracking-wider w-12 flex-shrink-0" />
+          <button
+            onClick={() => onFilterChange({ ...filters, returning: !filters.returning })}
+            className={`px-3 py-1 text-xs rounded-full border transition-all ${
+              filters.returning
+                ? 'bg-purple-500/20 text-purple-300 border-purple-500/40'
+                : 'bg-white/5 text-gray-400 border-white/10 hover:bg-white/10 hover:text-white'
+            }`}
+          >
+            Returning Shows
+          </button>
+        </div>
+      )}
 
       {/* Status filter */}
       {statuses.length > 0 && (

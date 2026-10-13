@@ -6,12 +6,15 @@ import MediaGrid from './components/MediaGrid.jsx';
 import MediaModal from './components/MediaModal.jsx';
 import { useMediaData } from './hooks/useMediaData.js';
 
-function applyFilters(items, { genre, status, service, search }) {
+function applyFilters(items, { genre, status, service, search, returning }) {
   return items.filter(item => {
-    if (genre   && !item.genre?.toLowerCase().includes(genre.toLowerCase())) return false;
-    if (status  && item.status?.toLowerCase()  !== status.toLowerCase())     return false;
-    if (service && item.service?.toLowerCase() !== service.toLowerCase())    return false;
-    if (search  && !item.title?.toLowerCase().includes(search.toLowerCase())) return false;
+    if (genre     && !item.genre?.toLowerCase().includes(genre.toLowerCase())) return false;
+    if (status    && item.status?.toLowerCase()  !== status.toLowerCase())     return false;
+    if (service   && item.service?.toLowerCase() !== service.toLowerCase())    return false;
+    if (search    && !item.title?.toLowerCase().includes(search.toLowerCase())) return false;
+    // "Returning Shows" — series you've already rated (i.e. watched at
+    // least part of), to surface ones that might have a new season out
+    if (returning && item.myRating == null) return false;
     return true;
   });
 }
@@ -35,7 +38,7 @@ function applySort(items, sort) {
 export default function App() {
   const [activeTab, setActiveTab] = useState('series');
   const [selectedItem, setSelectedItem] = useState(null);
-  const [filters, setFilters] = useState({ genre: '', status: '', service: '', search: '' });
+  const [filters, setFilters] = useState({ genre: '', status: '', service: '', search: '', returning: false });
   const [sort, setSort] = useState('');
   const [posterSize, setPosterSize] = useState('md');
   const { movies, series, watched, loading, error, overrideItem, imdbSyncStatus } = useMediaData();
@@ -61,7 +64,7 @@ export default function App() {
 
   function handleTabChange(tab) {
     setActiveTab(tab);
-    setFilters({ genre: '', status: '', service: '', search: '' });
+    setFilters({ genre: '', status: '', service: '', search: '', returning: false });
     setSort('');
   }
 
@@ -112,6 +115,7 @@ export default function App() {
           onSortChange={setSort}
           posterSize={posterSize}
           onSizeChange={setPosterSize}
+          showReturningFilter={activeTab === 'series'}
         />
       )}
 
