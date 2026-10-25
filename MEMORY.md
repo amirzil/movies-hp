@@ -433,3 +433,49 @@ what actually resolves the tradeoff: nobody has to infer the value from a
 zoomed bar's height alone, which was the real concern with a non-zero
 baseline in the first place. Re-verified visually (cropped screenshot at
 2.5x zoom): S01/S02/S03 read clearly as 8.6/8.4/9.0.
+
+## 2026-10-25 — "Episode count" was rated-count, not total; found OMDB quota exhausted
+
+**Context:** user reported "The Diplomat" showing only 2 episodes for
+seasons 2 and 3, when there are really 6 and 8.
+
+**Root cause — not a fetch bug.** TMDB's season endpoints return the full
+6/8 episode lists correctly, and episode *count* was never filtered by
+anything — `fetchSeasonStats` always maps over every TMDB-known episode
+regardless of OMDB coverage. The actual issue was the chart's hover tooltip
+label: "2 eps" meant "2 of this season's episodes have an OMDB-sourced IMDB
+rating," not "this season has 2 episodes." OMDB lags well behind a season's
+real episode count for newer seasons — verified directly via the OMDB API
+before its quota ran out (see below): Diplomat S2 is genuinely 2-of-6 rated,
+S3 is 2-of-8. Read in isolation, "2 eps" looks exactly like what was
+reported.
+
+**Decided:** carry the real total (`s.episodes.length`) alongside the rated
+count everywhere this shows up — the hover tooltip now reads "N of M
+episodes rated," and a small always-visible "N/M rated" label sits under
+each bar (not hover-only, same reasoning as the value-at-the-tip label: the
+real number should never be one interaction away from looking like
+something else).
+
+**Found but not fixed — flagging instead:** while independently verifying
+Diplomat's numbers via the real OMDB API, every request started returning
+401 "Request limit reached!" — the free OMDB tier caps at 1,000 requests/
+day, and it's shared across every OMDB-backed feature site-wide (episode
+ratings, Rotten Tomatoes, both season charts), not just this one chart. My
+own testing today likely contributed to exhausting it, but the underlying
+exposure is real: `fetchSeasonStats` only caches a season's OMDB result
+`if (hasOmdbData)` — a season OMDB hasn't rated yet (like Diplomat's) never
+gets cached, so it's re-fetched from OMDB on every single modal open,
+indefinitely, burning quota for exactly the shows least likely to ever
+reward the retry. Worth a follow-up once the quota resets: either cache
+"no OMDB data yet" results too (with a shorter TTL so it still retries
+occasionally), or reconsider whether OMDB's free tier is enough for how
+this app is actually used now.
+
+**Verification note:** couldn't re-render Diplomat live to confirm the fix
+visually (the same quota exhaustion blocks it for every show, not just this
+one, for the rest of today). Shipped on: the component logic is unchanged
+other than carrying one extra field and two label strings; the chart's core
+behavior was already proven live against Invincible before this change; and
+Diplomat's exact numbers (2/6, 2/8) were confirmed directly via the OMDB API
+before its quota ran out.
