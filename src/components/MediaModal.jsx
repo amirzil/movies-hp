@@ -204,6 +204,103 @@ function PickerGrid({ title, mediaType, onSelect, onCancel }) {
   );
 }
 
+// One bar per season, averaging only the episodes with a genuine IMDB rating
+// (isImdb) — episodes that only got a TMDB fallback are excluded from the
+// average entirely rather than diluting it, and a season with no IMDB-rated
+// episodes at all is left out of the chart rather than shown as a false zero.
+function SeasonAverageChart({ seasons }) {
+  const [hovered, setHovered] = useState(null);
+
+  const data = seasons
+    .map(s => {
+      const imdbEpisodes = s.episodes.filter(e => e.isImdb && e.rating != null);
+      if (!imdbEpisodes.length) return null;
+      const avg = imdbEpisodes.reduce((sum, e) => sum + e.rating, 0) / imdbEpisodes.length;
+      return { season: s.season, avg, count: imdbEpisodes.length };
+    })
+    .filter(Boolean);
+
+  if (!data.length) return null;
+
+  // Bars grow from a true zero baseline, not the data's own range — the
+  // episode line chart above can zoom in because position (not bar length)
+  // carries its values, but a truncated bar axis would visually exaggerate
+  // small differences between season averages. Fixed 0–10 also keeps bars
+  // comparable across different shows.
+  const minRating = 0;
+  const maxRating = 10;
+
+  const W = 500, H = 140;
+  const ML = 28, MR = 8, MT = 8, MB = 20;
+  const chartW = W - ML - MR;
+  const chartH = H - MT - MB;
+  const barGap = 6;
+  const barW = (chartW - barGap * (data.length - 1)) / data.length;
+
+  function yPos(r) { return MT + (1 - (r - minRating) / (maxRating - minRating)) * chartH; }
+
+  const yTicks = [0, 2, 4, 6, 8, 10];
+
+  return (
+    <div className="mt-4">
+      <p className="text-[11px] text-gray-500 uppercase tracking-wider mb-2">Average Rating per Season (IMDB)</p>
+
+      <div className="relative">
+        <svg
+          viewBox={`0 0 ${W} ${H}`}
+          className="w-full"
+          style={{ height: H }}
+          onMouseLeave={() => setHovered(null)}
+        >
+          {yTicks.map(r => (
+            <g key={r}>
+              <line x1={ML} y1={yPos(r)} x2={W - MR} y2={yPos(r)} stroke="rgba(255,255,255,0.06)" strokeWidth="1" />
+              <text x={ML - 4} y={yPos(r)} textAnchor="end" dominantBaseline="middle" fill="#6b7280" fontSize="8">{r}</text>
+            </g>
+          ))}
+
+          <line x1={ML} y1={MT + chartH} x2={W - MR} y2={MT + chartH} stroke="rgba(255,255,255,0.1)" strokeWidth="1" />
+
+          {data.map((d, i) => {
+            const x = ML + i * (barW + barGap);
+            const y = yPos(d.avg);
+            const h = MT + chartH - y;
+            // Indexed by season number (not filtered position) so a bar
+            // keeps the same color as its season's line in the chart above,
+            // even if an in-between season has no IMDB data and is skipped.
+            const color = SEASON_COLORS[(d.season - 1) % SEASON_COLORS.length];
+            return (
+              <g key={d.season}>
+                <rect
+                  x={x} y={y} width={barW} height={Math.max(h, 1)} rx="2"
+                  fill={color} opacity={hovered?.season === d.season ? 1 : 0.8}
+                  style={{ cursor: 'crosshair' }}
+                  onMouseEnter={() => setHovered(d)}
+                />
+                <text x={x + barW / 2} y={MT + chartH + 9} textAnchor="middle" fill="#6b7280" fontSize="8">
+                  S{String(d.season).padStart(2, '0')}
+                </text>
+              </g>
+            );
+          })}
+        </svg>
+
+        {hovered && (
+          <div className="absolute top-1 right-1 bg-[#1a1a2e] border border-white/10 rounded-lg px-3 py-2 text-xs pointer-events-none shadow-lg">
+            <p className="text-gray-400 mb-0.5">Season {hovered.season}</p>
+            <p className="font-semibold text-purple-300">
+              ★ {hovered.avg.toFixed(1)}
+              <span className="text-[9px] text-gray-500 ml-1">
+                IMDB · {hovered.count} ep{hovered.count === 1 ? '' : 's'}
+              </span>
+            </p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function MediaModal({ item, onClose, onCorrect }) {
   const [trailerKey, setTrailerKey] = useState(null);
   const [picking, setPicking] = useState(false);
@@ -400,10 +497,11 @@ export default function MediaModal({ item, onClose, onCorrect }) {
                   </div>
                 )}
 
-                {/* Chart shown below on small screens */}
+                {/* Charts shown below on small screens */}
                 {seasonStats && (
                   <div className="lg:hidden">
                     <EpisodeRatingChart seasons={seasonStats} />
+                    <SeasonAverageChart seasons={seasonStats} />
                   </div>
                 )}
 
@@ -438,10 +536,11 @@ export default function MediaModal({ item, onClose, onCorrect }) {
                 </button>
               </div>
 
-              {/* Right column: chart always visible on large screens */}
+              {/* Right column: charts always visible on large screens */}
               {seasonStats && (
                 <div className="hidden lg:block">
                   <EpisodeRatingChart seasons={seasonStats} className="mt-0" />
+                  <SeasonAverageChart seasons={seasonStats} />
                 </div>
               )}
             </div>
