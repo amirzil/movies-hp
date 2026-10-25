@@ -418,3 +418,18 @@ hand — S01 8.62, S02 8.36, S03 8.98, S04 zero rated episodes (it just aired)
 — confirmed via the DOM's accessibility tree, not just a screenshot, that
 the rendered bars exist for exactly S01–S03 with proportional heights
 matching those numbers. S04 correctly absent.
+
+**Corrected same day — the fixed 0–10 baseline was unreadable in practice.**
+User feedback: "the bars are impossible to read." Right call on paper (bars
+shouldn't lie about proportion from zero), wrong call for this specific
+data — IMDB season averages for anything worth tracking cluster tightly
+(usually 7–9), so on a true 0–10 scale every bar came out nearly full-height
+and the actual season-to-season differences, the entire reason for the
+chart, were invisible. Zoomed the scale back into the data's own range
+(same approach as the episode line chart above it) and added the exact
+average directly at each bar's tip, always visible — not just on hover —
+per the mark spec's own labeling convention for bars. The direct label is
+what actually resolves the tradeoff: nobody has to infer the value from a
+zoomed bar's height alone, which was the real concern with a non-zero
+baseline in the first place. Re-verified visually (cropped screenshot at
+2.5x zoom): S01/S02/S03 read clearly as 8.6/8.4/9.0.
