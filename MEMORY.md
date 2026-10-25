@@ -386,3 +386,35 @@ copy would have undermined the drift-check workflow's whole purpose).
 Verified this version by curling `/` directly post-deploy, not just
 `/index.html` — same "don't trust the single surface test" lesson as the
 missing-`.env` build incident a couple weeks back.
+
+## 2026-10-25 — Per-season average IMDB rating chart
+
+**Context:** the existing `EpisodeRatingChart` in the TV show modal plots
+per-*episode* ratings and mixes IMDB with a TMDB fallback per point (each
+dot's tooltip says which source it came from) — not what was asked for, a
+per-season average, IMDB-only.
+
+**Decided:** new `SeasonAverageChart`, one bar per season, averaging only
+episodes with `isImdb: true` — episodes that only got the TMDB fallback are
+excluded from the average rather than diluting it, and a season with zero
+IMDB-rated episodes is left off the chart entirely (not shown as a false
+zero). Shown directly below the existing episode chart, same component file,
+same `SEASON_COLORS` indexed by season number (not filtered array position)
+so a bar's color still matches its season's line above even if an
+in-between season gets skipped.
+
+**Bars use a fixed 0–10 baseline, not the data's own range** — caught this
+against the dataviz skill's own mark spec ("bars grow from a single
+baseline") before shipping: a bar chart's length *is* its value, so a
+truncated axis would visually exaggerate small differences between
+seasons, unlike the line chart above it, where position (not length) carries
+the value and zooming into the data's own range is fine. Fixed 0–10 also
+keeps bars comparable across different shows, not just within one.
+
+**Verified beyond "it compiles":** built and ran the real app in a browser
+(agent-browser), opened Invincible's modal, and independently fetched its
+raw OMDB per-episode ratings outside the app to compute season averages by
+hand — S01 8.62, S02 8.36, S03 8.98, S04 zero rated episodes (it just aired)
+— confirmed via the DOM's accessibility tree, not just a screenshot, that
+the rendered bars exist for exactly S01–S03 with proportional heights
+matching those numbers. S04 correctly absent.
