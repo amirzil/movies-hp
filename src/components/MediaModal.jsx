@@ -239,7 +239,7 @@ function SeasonAverageChart({ seasons }) {
   const maxRating = Math.min(10, Math.ceil(Math.max(...data.map(d => d.avg)) + 0.3));
 
   const W = 500, H = 150;
-  const ML = 28, MR = 8, MT = 16, MB = 30;
+  const ML = 28, MR = 8, MT = 22, MB = 30;
   const chartW = W - ML - MR;
   const chartH = H - MT - MB;
   const barGap = 6;
@@ -288,7 +288,7 @@ function SeasonAverageChart({ seasons }) {
                 />
                 {/* Value at the tip — always visible, not just on hover, so
                     the zoomed-in scale is never the only way to read it */}
-                <text x={x + barW / 2} y={y - 4} textAnchor="middle" fill="#9ca3af" fontSize="9" fontWeight="600">
+                <text x={x + barW / 2} y={y - 6} textAnchor="middle" fill="#e5e7eb" fontSize="14" fontWeight="700">
                   {d.avg.toFixed(1)}
                 </text>
                 <text x={x + barW / 2} y={MT + chartH + 9} textAnchor="middle" fill="#6b7280" fontSize="8">
