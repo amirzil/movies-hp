@@ -216,7 +216,12 @@ function SeasonAverageChart({ seasons }) {
       const imdbEpisodes = s.episodes.filter(e => e.isImdb && e.rating != null);
       if (!imdbEpisodes.length) return null;
       const avg = imdbEpisodes.reduce((sum, e) => sum + e.rating, 0) / imdbEpisodes.length;
-      return { season: s.season, avg, count: imdbEpisodes.length };
+      // `count` is how many episodes actually had an IMDB rating to average —
+      // OMDB often lags well behind a season's real episode count (e.g. only
+      // 2 of a season's 8 episodes rated yet), so `total` (every episode TMDB
+      // knows about, rated or not) has to travel alongside it everywhere this
+      // shows up, or "2 eps" reads as "this season only has 2 episodes."
+      return { season: s.season, avg, count: imdbEpisodes.length, total: s.episodes.length };
     })
     .filter(Boolean);
 
@@ -233,8 +238,8 @@ function SeasonAverageChart({ seasons }) {
   const minRating = Math.max(0, Math.floor(Math.min(...data.map(d => d.avg)) - 0.3));
   const maxRating = Math.min(10, Math.ceil(Math.max(...data.map(d => d.avg)) + 0.3));
 
-  const W = 500, H = 140;
-  const ML = 28, MR = 8, MT = 16, MB = 20;
+  const W = 500, H = 150;
+  const ML = 28, MR = 8, MT = 16, MB = 30;
   const chartW = W - ML - MR;
   const chartH = H - MT - MB;
   const barGap = 6;
@@ -289,6 +294,12 @@ function SeasonAverageChart({ seasons }) {
                 <text x={x + barW / 2} y={MT + chartH + 9} textAnchor="middle" fill="#6b7280" fontSize="8">
                   S{String(d.season).padStart(2, '0')}
                 </text>
+                {/* How many of the season's episodes actually had an IMDB
+                    rating to average — always visible, since "2 eps" read in
+                    isolation looks like the season's whole episode count */}
+                <text x={x + barW / 2} y={MT + chartH + 19} textAnchor="middle" fill="#4b5563" fontSize="7">
+                  {d.count}/{d.total} rated
+                </text>
               </g>
             );
           })}
@@ -300,7 +311,7 @@ function SeasonAverageChart({ seasons }) {
             <p className="font-semibold text-purple-300">
               ★ {hovered.avg.toFixed(1)}
               <span className="text-[9px] text-gray-500 ml-1">
-                IMDB · {hovered.count} ep{hovered.count === 1 ? '' : 's'}
+                IMDB · {hovered.count} of {hovered.total} episode{hovered.total === 1 ? '' : 's'} rated
               </span>
             </p>
           </div>
