@@ -222,16 +222,19 @@ function SeasonAverageChart({ seasons }) {
 
   if (!data.length) return null;
 
-  // Bars grow from a true zero baseline, not the data's own range — the
-  // episode line chart above can zoom in because position (not bar length)
-  // carries its values, but a truncated bar axis would visually exaggerate
-  // small differences between season averages. Fixed 0–10 also keeps bars
-  // comparable across different shows.
-  const minRating = 0;
-  const maxRating = 10;
+  // A fixed 0–10 scale is honest but unreadable here: IMDB season averages
+  // for anything worth watching cluster tightly (usually 7–9), so every bar
+  // ends up nearly full-height and the actual differences — the whole point
+  // of this chart — disappear. Zoomed into the data's own range instead,
+  // like the episode chart above it, and every bar gets its exact value
+  // labeled right at the tip (the skill's own convention for bar charts) so
+  // the zoomed scale is never the only thing standing between the viewer
+  // and the real number.
+  const minRating = Math.max(0, Math.floor(Math.min(...data.map(d => d.avg)) - 0.3));
+  const maxRating = Math.min(10, Math.ceil(Math.max(...data.map(d => d.avg)) + 0.3));
 
   const W = 500, H = 140;
-  const ML = 28, MR = 8, MT = 8, MB = 20;
+  const ML = 28, MR = 8, MT = 16, MB = 20;
   const chartW = W - ML - MR;
   const chartH = H - MT - MB;
   const barGap = 6;
@@ -239,7 +242,8 @@ function SeasonAverageChart({ seasons }) {
 
   function yPos(r) { return MT + (1 - (r - minRating) / (maxRating - minRating)) * chartH; }
 
-  const yTicks = [0, 2, 4, 6, 8, 10];
+  const yTicks = [];
+  for (let r = Math.ceil(minRating); r <= Math.floor(maxRating); r++) yTicks.push(r);
 
   return (
     <div className="mt-4">
@@ -277,6 +281,11 @@ function SeasonAverageChart({ seasons }) {
                   style={{ cursor: 'crosshair' }}
                   onMouseEnter={() => setHovered(d)}
                 />
+                {/* Value at the tip — always visible, not just on hover, so
+                    the zoomed-in scale is never the only way to read it */}
+                <text x={x + barW / 2} y={y - 4} textAnchor="middle" fill="#9ca3af" fontSize="9" fontWeight="600">
+                  {d.avg.toFixed(1)}
+                </text>
                 <text x={x + barW / 2} y={MT + chartH + 9} textAnchor="middle" fill="#6b7280" fontSize="8">
                   S{String(d.season).padStart(2, '0')}
                 </text>
