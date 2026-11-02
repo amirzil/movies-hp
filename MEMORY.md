@@ -479,3 +479,70 @@ other than carrying one extra field and two label strings; the chart's core
 behavior was already proven live against Invincible before this change; and
 Diplomat's exact numbers (2/6, 2/8) were confirmed directly via the OMDB API
 before its quota ran out.
+
+## 2026-11-02 — Replaced OMDB with IMDb's own API for episode ratings
+
+**Context:** user pushed back on the "not enough votes yet" theory from the
+"rated vs total" fix above, with screenshots proving every episode of The
+Diplomat S2/S3 has thousands of votes and a real rating on IMDb's own site.
+That settled it — OMDB's gap wasn't about vote thresholds, OMDB's own
+episode-level data is just incomplete, full stop.
+
+**Found:** IMDb runs a public GraphQL API (`api.graphql.imdb.com`, same one
+the personal-ratings sync already uses) that returns every episode of a show
+— id, title, `ratingsSummary { aggregateRating voteCount }` — via
+`title(id) { episodes { episodes(first, after) { ... } } }`, paginated,
+**no login needed** since this is public data (confirmed by the field
+working with zero auth headers at all).
+
+**The catch, confirmed directly:** this endpoint is origin-gated — a request
+carrying our production origin (`https://movies-watchlist-hp.web.app`) gets
+a flat 403 from IMDb's edge/WAF, headers and all, regardless of CORS
+headers. A real browser can't forge `Origin` the way `curl` can, so this
+can only ever be fetched server-side — same shape as the personal-ratings
+sync, minus the cookie.
+
+**Decided:** `scripts/sync-episode-ratings.mjs` (new), `workflow_dispatch`
+only (public data, no cookie-expiry pressure, so no reason to force it onto
+the client-triggered staleness pattern the personal-ratings sync uses).
+Discovers every tracked TV show's TMDB id from `/media_cache` and
+`/overrides` directly — these already hold every show the app has ever
+resolved a match for, so there's no need to re-implement title-search
+matching in the sync script. Resolves each to an IMDb id via TMDB's
+`external_ids`, pages through every episode, writes the full set to RTDB at
+`/episodeRatings/{imdbId}`.
+
+Client (`tmdb.js`): `fetchSeasonStats` now takes an `imdbId` and does a
+single RTDB read instead of N TMDB+OMDB calls per modal open — simpler,
+faster, and every episode is genuinely IMDb-sourced now (`isImdb` is always
+`true`). `MediaModal.jsx` resolves `imdbId` before fetching episode stats
+(reusing the existing OMDB show-info call's result when the sheet
+enrichment hasn't already resolved one), instead of passing `tmdbId`
+through.
+
+**Watch for:** RTDB represents an object whose keys are all small sequential
+integers (season/episode numbers both qualify) as a sparse array with
+`null` holes instead of a plain object — confirmed directly, Diplomat
+season 2 came back as `[null, {...}, {...}, ...]`. `Object.entries` handles
+both shapes identically, so the client code doesn't special-case it, but
+worth remembering if something else ever reads this node directly.
+
+**Verified before the full sweep:** ran the script against 3 known shows
+first (Diplomat, Invincible, The Night Agent), confirmed the RTDB write
+shape directly, then opened Diplomat's modal — all 4 seasons now show with
+complete coverage (8/8, 6/6, 8/8, 8/8-in-progress rated), not 2-of-6/2-of-8
+as before. Then ran the full sweep: 205 tracked shows discovered, 187
+synced, 18 skipped (no IMDb id resolvable or no episode data at all —
+likely very new or obscure entries), 0 failed. Confirmed directly against
+RTDB afterward: `/episodeRatings` holds exactly 187 shows.
+
+**Process note:** my own `nohup cmd &` plus the tool's `run_in_background`
+flag don't compose — backgrounding it myself made the tool consider its own
+(immediately-returning) foreground command complete right away, firing a
+misleading "completed" notification while the real nohup'd process kept
+running detached and untracked. Started a second run before noticing the
+first was still alive from the stale notification: had two sync processes
+racing against the same Firebase data for a stretch (harmless here, since
+the script is idempotent — full overwrite per show every run — but
+wasteful). Stopped the duplicate once caught. Lesson: use the tool's own
+`run_in_background` on the plain command, not both.
