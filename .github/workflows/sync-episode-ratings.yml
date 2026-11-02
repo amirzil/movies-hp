@@ -1,0 +1,25 @@
+name: Sync Episode Ratings
+
+# Manual only. Re-run whenever new shows get tracked, a season finishes
+# airing, or ratings are worth refreshing — public data, no cookie to
+# expire, so there's no urgency pushing this onto a schedule the way the
+# personal-ratings sync has. `gh workflow run sync-episode-ratings.yml`.
+on:
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Sync episode ratings from IMDb to Firebase
+        run: node scripts/sync-episode-ratings.mjs
+        env:
+          VITE_TMDB_API_KEY: ${{ secrets.VITE_TMDB_API_KEY }}
+          VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}
+          VITE_FIREBASE_DB_URL: https://movies-watchlist-hp-default-rtdb.firebaseio.com

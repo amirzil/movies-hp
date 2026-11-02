@@ -313,76 +313,47 @@ export async function fetchOmdbShowInfo(tmdbId, mediaType, title = null, year = 
   } catch (e) { dbg(`fetch error: ${e.message}`); return null; }
 }
 
-// ─── Episode ratings per season (cached in localStorage, fetched lazily) ──────
+// ─── Episode ratings per season ────────────────────────────────────────────
+//
+// Synced separately (see scripts/sync-episode-ratings.mjs) straight from
+// IMDb's own public API into RTDB at /episodeRatings/{imdbId} — OMDB's
+// per-episode coverage lags IMDb's own site badly for newer or binge-dropped
+// seasons (confirmed: OMDB had 2 of 8 episodes rated for a season IMDb
+// itself had fully rated, thousands of votes each), so this reads IMDb's
+// real numbers directly instead of asking OMDB per season.
 
-export async function fetchSeasonStats(tmdbId) {
-  if (!TMDB_API_KEY || !tmdbId) return null;
+// RTDB represents an object whose keys are all small sequential integers as
+// a sparse array with null holes instead of a plain object (season/episode
+// numbers qualify) — Object.entries works the same way on either shape, so
+// this doesn't need to care which one comes back, just skip the holes.
+function rtdbEntries(value) {
+  return Object.entries(value || {}).filter(([, v]) => v != null);
+}
 
-  const showKey = `omdb2:seasons:${tmdbId}`;
-  const cached = fromCache(showKey);
-  if (cached !== undefined) return cached;
-
+export async function loadEpisodeRatings(imdbId) {
+  if (!FIREBASE_DB_URL || !imdbId) return null;
   try {
-    const showRes = await fetch(`${BASE}/tv/${tmdbId}?api_key=${TMDB_API_KEY}`);
-    if (!showRes.ok) return null;
-    const showJson = await showRes.json();
-    const seasons = (showJson.seasons || []).filter(s => s.season_number > 0);
-    if (!seasons.length) return null;
-
-    const imdbId = OMDB_API_KEY ? await getImdbId(tmdbId, 'tv') : null;
-
-    const stats = await Promise.all(seasons.map(async s => {
-      const key = `omdb2:season:${tmdbId}:${s.season_number}`;
-      const cachedSeason = fromCache(key);
-      if (cachedSeason !== undefined) return cachedSeason ? { season: s.season_number, episodes: cachedSeason } : null;
-
-      // Always fetch TMDB for the full, authoritative episode list
-      let tmdbEpisodes = [];
-      try {
-        const res = await fetch(`${BASE}/tv/${tmdbId}/season/${s.season_number}?api_key=${TMDB_API_KEY}`);
-        if (res.ok) tmdbEpisodes = (await res.json()).episodes || [];
-      } catch {}
-      if (!tmdbEpisodes.length) return null;
-
-      // Fetch OMDB ratings indexed by episode number
-      const omdbRatings = {};
-      let hasOmdbData = false;
-      if (imdbId && OMDB_API_KEY) {
-        try {
-          const res = await fetch(`https://www.omdbapi.com/?i=${imdbId}&Season=${s.season_number}&apikey=${OMDB_API_KEY}`);
-          if (res.ok) {
-            const json = await res.json();
-            if (json.Response !== 'True') { recordOmdbError(json); }
-            if (json.Response === 'True' && json.Episodes?.length) {
-              for (const e of json.Episodes) {
-                if (e.imdbRating !== 'N/A') {
-                  omdbRatings[parseInt(e.Episode, 10)] = parseFloat(e.imdbRating);
-                  hasOmdbData = true;
-                }
-              }
-            }
-          }
-        } catch {}
-      }
-
-      // Merge: TMDB gives us the complete episode list; OMDB ratings take priority per episode
-      const episodes = tmdbEpisodes.map(e => ({
-        ep:     e.episode_number,
-        rating: omdbRatings[e.episode_number] ?? (e.vote_average > 0 ? e.vote_average : null),
-        name:   e.name,
-        isImdb: omdbRatings[e.episode_number] != null,
-      }));
-
-      if (hasOmdbData) toCache(key, episodes); // only cache when we have real IMDB data
-      return { season: s.season_number, episodes };
-    }));
-
-    const result = stats.filter(Boolean);
-    // Only cache the show-level result if every season came from OMDB (season caches are the source of truth)
-    const allFromOmdb = result.every(s => fromCache(`omdb2:season:${tmdbId}:${s.season}`) !== undefined);
-    if (allFromOmdb) toCache(showKey, result);
-    return result;
+    const token = await getAuthToken();
+    const res = await fetch(rtdbUrl(`episodeRatings/${imdbId}`, token));
+    return res.ok ? await res.json() : null;
   } catch { return null; }
+}
+
+export async function fetchSeasonStats(imdbId) {
+  const data = await loadEpisodeRatings(imdbId);
+  if (!data) return null;
+
+  const seasons = rtdbEntries(data)
+    .map(([seasonKey, episodesByNumber]) => {
+      const episodes = rtdbEntries(episodesByNumber)
+        .map(([epKey, e]) => ({ ep: Number(epKey), rating: e.rating, name: e.title, isImdb: true }))
+        .sort((a, b) => a.ep - b.ep);
+      return { season: Number(seasonKey), episodes };
+    })
+    .filter(s => s.episodes.length)
+    .sort((a, b) => a.season - b.season);
+
+  return seasons.length ? seasons : null;
 }
 
 // ─── Current season (cached in localStorage, fetched lazily) ─────────────────

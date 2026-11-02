@@ -342,16 +342,24 @@ export default function MediaModal({ item, onClose, onCorrect }) {
       fetchTrailer(item.tmdbId, item.mediaType).then(key => {
         if (key) setTrailerKey(key);
       });
-      fetchOmdbShowInfo(item.tmdbId, item.mediaType, item.title, item.year,
+      const omdbPromise = fetchOmdbShowInfo(item.tmdbId, item.mediaType, item.title, item.year,
         step => setOmdbDebug(prev => [...prev, step])
-      ).then(data => {
+      );
+      omdbPromise.then(data => {
         if (data) setOmdbData(data);
         const err = getOmdbError();
         if (err) setOmdbError(err);
       });
       if (item.mediaType === 'tv') {
-        fetchSeasonStats(item.tmdbId).then(stats => {
-          if (stats?.length) setSeasonStats(stats);
+        // Episode ratings are keyed by IMDb id, not TMDB id — reuse the
+        // show-level OMDB fetch's imdbId if the sheet enrichment hasn't
+        // already resolved one, rather than looking it up a second time.
+        const imdbIdPromise = item.imdbId ? Promise.resolve(item.imdbId) : omdbPromise.then(d => d?.imdbId);
+        imdbIdPromise.then(imdbId => {
+          if (!imdbId) return;
+          fetchSeasonStats(imdbId).then(stats => {
+            if (stats?.length) setSeasonStats(stats);
+          });
         });
       }
     }
