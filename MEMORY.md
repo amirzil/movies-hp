@@ -546,3 +546,39 @@ racing against the same Firebase data for a stretch (harmless here, since
 the script is idempotent — full overwrite per show every run — but
 wasteful). Stopped the duplicate once caught. Lesson: use the tool's own
 `run_in_background` on the plain command, not both.
+
+## 2026-11-18 — Replaced client-triggered IMDb sync with a daily cron
+
+**Context:** the fine-grained PAT behind this (`VITE_GH_TRIGGER_TOKEN` /
+`GH_ACTIONS_TRIGGER_TOKEN`, see 2026-09-26 entry above) needed regenerating
+roughly monthly, and sat in the public client bundle in the meantime.
+
+**Decided:** give `sync-imdb-ratings.yml` its own `schedule: cron` (daily,
+06:00 UTC) and drop the client-side trigger entirely — removed
+`GH_TRIGGER_TOKEN`/`GH_REPO` from `src/config.js`, `VITE_GH_TRIGGER_TOKEN`
+from `.env.example` and `deploy.yml`, and rewrote
+`src/utils/imdbRatingsSync.js` to no longer call GitHub's API at all.
+`workflow_dispatch` stays on the workflow for on-demand manual resyncs.
+
+**This supersedes the "Rejected" reasoning in the 2026-09-26 entry above**,
+which rejected a plain monthly cron specifically because it "fails
+silently, nobody notices" — same problem the deploy drift-check exists to
+avoid. That objection is resolved here, not ignored: `scripts/sync-imdb-
+ratings.mjs` now writes `/imdbRatingsMeta/lastSyncFailed` (true/false) to
+Firebase on every run, success or failure, and `imdbRatingsSync.js` reads
+that flag — still checked on every page load — to drive the same amber
+banner in `App.jsx`. Failure visibility didn't depend on the token-based
+trigger; it only needed *some* channel to a value the client could already
+read, and Firebase (which the client already talks to) serves that just as
+well as a GitHub API call did.
+
+**Rejected:** keeping the PAT and just extending its expiration (simplest,
+but leaves a long-lived secret in the client bundle and doesn't remove the
+rotation chore, just slows it) and a Firebase Cloud Function proxy (same
+Blaze-plan billing objection as before, still a bigger ask than needed
+here).
+
+**Setup still needed:** delete the `GH_ACTIONS_TRIGGER_TOKEN` repo secret
+(`gh secret delete GH_ACTIONS_TRIGGER_TOKEN`) and revoke the PAT on
+github.com/settings/personal-access-tokens — both now unused. Not done yet;
+flagging so it isn't forgotten.
