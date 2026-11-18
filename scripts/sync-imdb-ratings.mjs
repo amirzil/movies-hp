@@ -123,19 +123,28 @@ async function rtdbRequest(path, token, method, body) {
 }
 
 const token = await getFirebaseIdToken();
-const checkpoint = await rtdbRequest('imdbRatingsMeta/lastSyncDate', token, 'GET');
-console.log(checkpoint ? `Last synced up to: ${checkpoint}` : 'No checkpoint yet — full first sync.');
 
-// Captured before fetching starts, so nothing rated during this run's
-// execution window can be missed by the next run's checkpoint.
-const runStartedAt = new Date().toISOString();
+try {
+  const checkpoint = await rtdbRequest('imdbRatingsMeta/lastSyncDate', token, 'GET');
+  console.log(checkpoint ? `Last synced up to: ${checkpoint}` : 'No checkpoint yet — full first sync.');
 
-const newRatings = await fetchNewRatings(checkpoint);
-console.log(`Fetched ${Object.keys(newRatings).length} new/updated ratings from IMDb.`);
+  // Captured before fetching starts, so nothing rated during this run's
+  // execution window can be missed by the next run's checkpoint.
+  const runStartedAt = new Date().toISOString();
 
-if (Object.keys(newRatings).length > 0) {
-  // PATCH merges these keys into /imdbRatings without touching existing ones
-  await rtdbRequest('imdbRatings', token, 'PATCH', newRatings);
+  const newRatings = await fetchNewRatings(checkpoint);
+  console.log(`Fetched ${Object.keys(newRatings).length} new/updated ratings from IMDb.`);
+
+  if (Object.keys(newRatings).length > 0) {
+    // PATCH merges these keys into /imdbRatings without touching existing ones
+    await rtdbRequest('imdbRatings', token, 'PATCH', newRatings);
+  }
+  await rtdbRequest('imdbRatingsMeta/lastSyncDate', token, 'PUT', runStartedAt);
+  // Read by the app to decide whether to show the "sync is failing" banner —
+  // cleared on success so a later good run dismisses a prior failure.
+  await rtdbRequest('imdbRatingsMeta/lastSyncFailed', token, 'PUT', false);
+  console.log(`Done. Checkpoint advanced to ${runStartedAt}.`);
+} catch (err) {
+  await rtdbRequest('imdbRatingsMeta/lastSyncFailed', token, 'PUT', true);
+  throw err;
 }
-await rtdbRequest('imdbRatingsMeta/lastSyncDate', token, 'PUT', runStartedAt);
-console.log(`Done. Checkpoint advanced to ${runStartedAt}.`);

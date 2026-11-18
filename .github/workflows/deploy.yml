@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+  workflow_dispatch:
   schedule:
     # Safety net: pushes to main have occasionally failed to dispatch a run
     # (observed 2026-08-13 -> 2026-09-24 gap with no explanation found). This
@@ -21,7 +22,9 @@ jobs:
         run: |
           LIVE_SHA=$(curl -s -f https://movies-watchlist-hp.web.app/version.txt || echo "none")
           echo "Live: $LIVE_SHA / HEAD: ${{ github.sha }}"
-          if [ "$LIVE_SHA" = "${{ github.sha }}" ]; then
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "up_to_date=false" >> "$GITHUB_OUTPUT"
+          elif [ "$LIVE_SHA" = "${{ github.sha }}" ]; then
             echo "up_to_date=true" >> "$GITHUB_OUTPUT"
           else
             echo "up_to_date=false" >> "$GITHUB_OUTPUT"
@@ -46,7 +49,6 @@ jobs:
           VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}
           VITE_FIREBASE_DB_URL: https://movies-watchlist-hp-default-rtdb.firebaseio.com
           VITE_SHEET_ID: ${{ secrets.VITE_SHEET_ID }}
-          VITE_GH_TRIGGER_TOKEN: ${{ secrets.GH_ACTIONS_TRIGGER_TOKEN }}
 
       - name: Stamp build with commit SHA
         if: steps.check.outputs.up_to_date == 'false'
